@@ -17,13 +17,58 @@ This is the first file an agent should read when entering this repository. Keep 
 - Mock data and workflow definitions in `lib/`.
 - No database, authentication, or real AI provider wiring yet.
 
-OpenDesign reference strategy:
+## Primary References
 
-- Follow OpenDesign's adapter-first thinking: keep agent provider detection, capability negotiation, and run output as a contract.
-- Do not import the OpenDesign daemon architecture until this project needs real local CLI spawning.
-- Treat Codex and Claude Code as first-class future adapters; current implementation exposes a lightweight harness contract and mock generation endpoint.
-- Local OpenDesign source is available at `references/sources/open-design` when that ignored checkout exists.
-- Local PM Skills source is available at `references/sources/pm-skills` when that ignored checkout exists.
+This project uses a dual-reference harness:
+
+> OpenDesign gives us the studio and artifact interaction model.
+> PM Skills gives us the product management reasoning and workflow model.
+> PM Agent Studio combines both into a PM-focused product innovation workspace.
+
+### 1. OpenDesign
+
+Path: `references/sources/open-design/`
+
+Use OpenDesign as the main reference for:
+
+- AI-native Studio layout
+- Artifact Canvas
+- prototype preview
+- skill picker
+- design system picker
+- iframe-style preview
+- artifact export actions
+- Codex / Claude Code adapter shape
+
+Do not copy OpenDesign wholesale. Recreate only the patterns needed for PM Agent Studio. Do not import OpenDesign source at runtime.
+
+### 2. PM Skills
+
+Path: `references/sources/pm-skills/`
+
+Use PM Skills as the main reference for product-management workflows.
+
+Important plugin areas:
+
+- `pm-execution`
+- `pm-product-discovery`
+- `pm-product-strategy`
+- `pm-market-research`
+- `pm-go-to-market`
+
+Use PM Skills to design:
+
+- Idea-to-Product Pack workflow
+- PRD generation structure
+- user stories
+- roadmap
+- assumption mapping
+- user personas
+- market research
+- competitor analysis
+- GTM extensions
+
+Do not directly expose raw plugin or skill names to end users. Convert them into user-friendly PM workflows such as Generate PRD, Create User Personas, Estimate Market Opportunity, Competitor Analysis, and Roadmap.
 
 ## Read Order
 
@@ -45,9 +90,12 @@ Layer 2, read only when relevant:
 - `docs/progress/current-sprint.md`
 - `docs/progress/rapid-delivery-plan.md`
 - `docs/progress/roadmap.md`
+- `docs/architecture.md`
 - `docs/memory/project-context.md`
 - `docs/memory/decisions.md`
 - `docs/engineering/github-sync.md`
+- `docs/engineering/pm-skills-reference.md`
+- `docs/engineering/open-design-reference.md`
 - `skills/*/SKILL.md`
 
 ## Core Product Flows

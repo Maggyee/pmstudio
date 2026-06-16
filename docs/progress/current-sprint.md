@@ -18,10 +18,12 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Progressive disclosure docs added under `docs/progress` and `docs/memory`.
 - Local workflow skills added under `skills/`.
 - Lightweight harness API added for provider/workflow discovery and mock generation.
+- Dual-reference harness added: OpenDesign for studio/artifact/prototype interaction, PM Skills for PM workflow and artifact structure.
+- PM Skills registry and PM workflow registry added under `lib/`.
 
 ## In Progress
 
-- Converting the static PM Studio prototype into a competition-ready demo of agent intake, product pack output, and PRD-to-prototype linkage.
+- Converting the static PM Studio prototype into a competition-ready demo of agent intake, FinSight product pack output, and PRD-to-prototype linkage.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

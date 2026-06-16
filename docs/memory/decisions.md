@@ -35,3 +35,9 @@ Reason: the source is useful for fast development reference, but vendoring thous
 Decision: keep PM Studio as the competition product, while using FinSight as the concrete generated demo project inside the workspace.
 
 Reason: an AI efficiency competition needs a clear product story and a tangible example. The platform explains the productivity gain; the FinSight artifact proves the workflow can generate a complete, inspectable product pack.
+
+## 2026-06-16: Use A Dual-Reference Harness
+
+Decision: split the harness into two explicit reference roles: OpenDesign for the studio/artifact/prototype interaction model, and PM Skills for product-management workflow methods and artifact structure.
+
+Reason: PM Studio needs to move quickly without blending two source projects into an unclear clone. The dual-reference model lets the app copy OpenDesign-style workspace behavior while translating PM Skills into user-friendly workflows such as Idea-to-Product Pack, PRD to Prototype, Generate PRD, User Personas, Market Research, Competitor Analysis, and Roadmap.

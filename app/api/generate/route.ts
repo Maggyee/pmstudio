@@ -24,7 +24,9 @@ export async function POST(request: Request) {
   return Response.json(
     generateMockPack({
       workflowId,
-      input: body?.input?.trim() || "面向产品经理的 AI 工作台",
+      input:
+        body?.input?.trim() ||
+        "我想做一个面向财富顾问的 AI 投研工作台，帮助快速生成市场简报、配置建议和客户跟进任务。",
     }),
   );
 }
