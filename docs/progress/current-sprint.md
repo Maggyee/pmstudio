@@ -20,10 +20,11 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Lightweight harness API added for provider/workflow discovery and mock generation.
 - Dual-reference harness added: OpenDesign for studio/artifact/prototype interaction, PM Skills for PM workflow and artifact structure.
 - PM Skills registry and PM workflow registry added under `lib/`.
+- Typed FinSight Product Pack added under `lib/product-pack.ts` and shared by `/api/generate` plus the `/app` workspace summary.
 
 ## In Progress
 
-- Converting the static PM Studio prototype into a competition-ready demo of agent intake, FinSight product pack output, and PRD-to-prototype linkage.
+- Converting the remaining static artifact tabs into Product Pack-driven views, starting with PRD-to-prototype linkage.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

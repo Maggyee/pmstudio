@@ -4,6 +4,7 @@ import {
   type PMWorkflow,
   type PMWorkflowArtifact,
 } from "@/lib/pm-workflows";
+import { buildFinSightProductPack, type ProductPack } from "@/lib/product-pack";
 
 export type AgentProviderId = "mock" | "codex" | "claude-code" | "api-fallback";
 
@@ -61,6 +62,7 @@ export type GeneratedPack = {
   referenceArchitecture: HarnessReferenceSource[];
   events: HarnessEvent[];
   artifacts: Record<string, string | string[]>;
+  productPack: ProductPack;
   openDesignPromptPlaceholder?: string;
 };
 
@@ -252,6 +254,7 @@ export function generateMockPack({
 }): GeneratedPack {
   const workflow = getHarnessWorkflow(workflowId);
   const pmWorkflow = getPMWorkflow(workflowId);
+  const productPack = buildFinSightProductPack(input);
 
   if (workflowId === "project-summarizer") {
     return {
@@ -259,6 +262,7 @@ export function generateMockPack({
       input,
       workflow,
       referenceArchitecture: harnessReferenceSources,
+      productPack,
       events: [
         {
           type: "running",
@@ -278,8 +282,7 @@ export function generateMockPack({
         },
       ],
       artifacts: {
-        "executive-summary":
-          "FinSight demo 已覆盖从产品想法到 PRD、原型、调研、竞品和路线图的完整产物链路。当前决策点是先强化编辑预览体验，再接入 Codex / Claude Code 真实运行。",
+        "executive-summary": productPack.summary.headline,
       },
     };
   }
@@ -290,6 +293,7 @@ export function generateMockPack({
       input,
       workflow,
       referenceArchitecture: harnessReferenceSources,
+      productPack,
       events: [
         {
           type: "running",
@@ -309,29 +313,13 @@ export function generateMockPack({
         },
       ],
       artifacts: {
-        "core-features": [
-          "市场雷达自动生成投研摘要",
-          "客户持仓与风险偏好导入",
-          "AI 生成配置建议和解释话术",
-          "合规检查与审阅记录",
-          "会后跟进任务和材料导出",
-        ],
-        "user-flow":
-          "选择客户 -> 生成市场简报 -> 匹配配置建议 -> 预览客户解释页 -> 合规审阅 -> 导出跟进材料",
-        "prototype-structure": [
-          "工作台首页",
-          "市场雷达页",
-          "客户组合页",
-          "配置建议页",
-          "合规审阅页",
-          "客户材料导出页",
-        ],
-        "prototype-brief":
-          "Use the OpenDesign artifact preview pattern to create a financial-advisor workspace with market radar, recommendation cards, compliance review, and export states.",
+        "core-features": productPack.prd.coreFeatures,
+        "user-flow": productPack.prototype.userFlow,
+        "prototype-structure": productPack.prototype.screens.map((screen) => screen.name),
+        "prototype-brief": productPack.prototype.openDesignPrompt,
         "prototype-preview": "FinSight 原型预览已在 Prototype tab 中展示，可继续接入 iframe-style live artifact。",
       },
-      openDesignPromptPlaceholder:
-        "参考 OpenDesign 的 artifact preview / iframe 形态，把 FinSight PRD 中的核心任务流生成可编辑页面原型。",
+      openDesignPromptPlaceholder: productPack.prototype.openDesignPrompt,
     };
   }
 
@@ -340,6 +328,7 @@ export function generateMockPack({
     input,
     workflow,
     referenceArchitecture: harnessReferenceSources,
+    productPack,
     events: [
       {
         type: "queued",
@@ -371,52 +360,22 @@ export function generateMockPack({
       },
     ],
     artifacts: {
-      positioning:
-        "FinSight 是面向财富顾问的 AI 投研工作台，帮助在会前快速生成市场简报、配置建议、客户解释话术和会后跟进材料。",
-      "target-users": ["一线财富顾问", "投研支持团队", "合规审阅人员", "客户经理主管"],
-      "pain-points": [
-        "市场信息、客户持仓和产品材料分散，顾问会前准备耗时长。",
-        "配置建议难以快速转成客户能理解的解释话术。",
-        "合规审阅和客户跟进记录割裂，复盘成本高。",
-      ],
-      "value-proposition":
-        "把投研摘要、客户画像、组合建议、合规检查和材料导出串成一个可审阅的顾问工作流。",
-      prd:
-        "目标是在 10 分钟内生成可评审的财富顾问方案包，覆盖市场雷达、客户组合分析、AI 配置建议、合规审阅和导出交付。",
-      "core-features": [
-        "市场雷达",
-        "客户组合分析",
-        "AI 配置建议",
-        "客户解释话术",
-        "合规审阅",
-        "导出项目材料",
-      ],
-      "user-stories": [
-        "作为财富顾问，我想快速生成客户会前简报，以便减少准备时间。",
-        "作为投研支持，我想把市场变化转成配置建议，以便顾问能快速复用。",
-        "作为合规人员，我想查看建议依据和审阅记录，以便降低沟通风险。",
-      ],
-      assumptions: [
-        "顾问愿意在客户会议前导入持仓和风险偏好。",
-        "机构能够提供可用的产品库和合规规则。",
-        "AI 生成内容需要人审后才能对客发送。",
-      ],
-      "prototype-structure": [
-        "工作台首页",
-        "市场雷达页",
-        "客户组合页",
-        "配置建议页",
-        "合规审阅页",
-        "客户材料导出页",
-      ],
-      "market-research": ["财富管理数字化", "投研内容自动化", "顾问赋能工具", "合规科技"],
-      "competitor-analysis": ["Bloomberg Terminal", "同花顺 iFinD", "银行智能投顾", "传统 CRM"],
-      roadmap: ["MVP: 会前简报和配置建议", "Next: 合规审阅和客户材料导出", "Later: 机构级投研协作与知识库"],
+      positioning: productPack.project.positioning,
+      "target-users": productPack.project.targetUsers,
+      "pain-points": productPack.project.painPoints,
+      "value-proposition": productPack.project.valueProposition,
+      prd: productPack.prd.objective,
+      "core-features": productPack.prd.coreFeatures,
+      "user-stories": productPack.prd.userStories,
+      assumptions: productPack.prd.assumptions,
+      "prototype-structure": productPack.prototype.screens.map((screen) => screen.name),
+      "market-research": productPack.research.marketOpportunity.map((item) => item.value),
+      "competitor-analysis": productPack.competitors.map((item) => item.competitor),
+      roadmap: productPack.roadmap.map((item) => `${item.horizon}: ${item.items.join(" / ")}`),
       "executive-summary":
         pmWorkflow?.description ??
         "双参考架构下，OpenDesign 提供工作台和 artifact 体验，pm-skills 提供 PM 方法论和产物结构。",
     },
-    openDesignPromptPlaceholder:
-      "参考 OpenDesign 的 Studio Shell、Artifact Canvas 和 prototype preview，把 FinSight 产品方案包转成可编辑原型。",
+    openDesignPromptPlaceholder: productPack.prototype.openDesignPrompt,
   };
 }

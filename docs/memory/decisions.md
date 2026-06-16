@@ -41,3 +41,9 @@ Reason: an AI efficiency competition needs a clear product story and a tangible 
 Decision: split the harness into two explicit reference roles: OpenDesign for the studio/artifact/prototype interaction model, and PM Skills for product-management workflow methods and artifact structure.
 
 Reason: PM Studio needs to move quickly without blending two source projects into an unclear clone. The dual-reference model lets the app copy OpenDesign-style workspace behavior while translating PM Skills into user-friendly workflows such as Idea-to-Product Pack, PRD to Prototype, Generate PRD, User Personas, Market Research, Competitor Analysis, and Roadmap.
+
+## 2026-06-16: Make Product Pack The Shared Artifact Contract
+
+Decision: define the FinSight demo output as a typed Product Pack in `lib/product-pack.ts`, then return it from `/api/generate` and pass it into the `/app` workspace.
+
+Reason: this keeps API output, UI summary, PRD, prototype, research, competitor, persona, roadmap, and export metadata aligned. It also makes the mock provider replaceable by Codex or Claude Code later without changing the workspace component contract.

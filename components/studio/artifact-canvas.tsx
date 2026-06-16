@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { AgentPanel } from "@/components/studio/agent-panel";
+import { ProductPackSummary } from "@/components/studio/product-pack-summary";
 import { PrdPreview } from "@/components/studio/prd-preview";
 import { PrdPrototypeMap } from "@/components/prd-prototype-map";
 import { ResearchPreview } from "@/components/studio/research-preview";
@@ -31,6 +32,7 @@ import {
   studioRoadmap,
   studioTabs,
 } from "@/lib/mock-data";
+import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
 function CompetitorsPreview() {
@@ -236,12 +238,15 @@ function getArtifactHref(tab: (typeof studioTabs)[number], activeViewport?: stri
 export function ArtifactCanvas({
   activeArtifact,
   activeViewport,
+  productPack,
 }: {
   activeArtifact?: string;
   activeViewport?: string;
+  productPack?: ProductPack;
 }) {
   const activeTab = getTabFromArtifactParam(activeArtifact);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "预览">("生成");
+  const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
 
   return (
     <section className="min-h-screen bg-[#fbfaf7]/62">
@@ -250,7 +255,7 @@ export function ArtifactCanvas({
           <Layers3 className="h-4 w-4 text-neutral-500" />
           <div className="min-w-0">
             <p className="text-xs text-neutral-500">交付物画布</p>
-            <h1 className="truncate text-lg font-semibold">FinSight 智能投研工作台</h1>
+            <h1 className="truncate text-lg font-semibold">{projectTitle}</h1>
           </div>
         </div>
         <div className="liquid-glass relative z-50 flex w-full max-w-full gap-1 overflow-x-auto rounded-full p-1 sm:w-auto">
@@ -329,6 +334,8 @@ export function ArtifactCanvas({
 
         <div className="mx-auto max-w-7xl">
           <div className="min-w-0 space-y-6">
+            {productPack ? <ProductPackSummary productPack={productPack} /> : null}
+
             <div className="mx-auto min-w-0 max-w-5xl overflow-hidden rounded-[24px] border border-black/10 bg-white/72 shadow-2xl shadow-black/10 backdrop-blur">
               <div className="flex items-center justify-between border-b border-neutral-200 bg-white/78 px-4 py-2 backdrop-blur">
                 <div className="flex items-center gap-2 text-xs font-medium text-neutral-500">

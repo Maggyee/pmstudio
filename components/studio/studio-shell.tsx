@@ -15,6 +15,7 @@ import {
   studioDesignSystems,
   studioTemplates,
 } from "@/lib/mock-data";
+import type { ProductPack } from "@/lib/product-pack";
 
 function TopbarPicker({
   label,
@@ -47,10 +48,14 @@ function TopbarPicker({
 export function StudioShell({
   activeArtifact,
   activeViewport,
+  productPack,
 }: {
   activeArtifact?: string;
   activeViewport?: string;
+  productPack?: ProductPack;
 }) {
+  const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
+
   return (
     <main className="min-h-screen text-[#191919]">
       <header className="relative z-40 border-b border-black/8 bg-white/60 backdrop-blur-2xl">
@@ -71,7 +76,7 @@ export function StudioShell({
               <div className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-400">
                 <span>工作台</span>
                 <span className="text-neutral-300">/</span>
-                <span className="truncate text-neutral-500">FinSight 智能投研工作台</span>
+                <span className="truncate text-neutral-500">{projectTitle}</span>
               </div>
             </div>
           </div>
@@ -127,10 +132,14 @@ export function StudioShell({
           <div className="border-b border-[#eeeeee] bg-white/70 px-4 py-3 lg:hidden">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <FileText className="h-4 w-4 text-[#12a7ff]" />
-              FinSight 智能投研工作台
+              {projectTitle}
             </div>
           </div>
-          <ArtifactCanvas activeArtifact={activeArtifact} activeViewport={activeViewport} />
+          <ArtifactCanvas
+            activeArtifact={activeArtifact}
+            activeViewport={activeViewport}
+            productPack={productPack}
+          />
         </section>
       </div>
     </main>
