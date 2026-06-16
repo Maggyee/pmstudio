@@ -1,18 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   ArrowUp,
   Download,
+  Eye,
   FileCode2,
   FileText,
   Layers3,
-  Maximize2,
   MessageSquareText,
+  MoreHorizontal,
   MousePointer2,
+  Pencil,
   Presentation,
   Send,
   Share2,
+  Sparkles,
 } from "lucide-react";
 
 import { AgentPanel } from "@/components/studio/agent-panel";
@@ -160,12 +164,88 @@ function ActionIcon({ action }: { action: string }) {
   return <Share2 className="h-4 w-4" />;
 }
 
-export function ArtifactCanvas() {
-  const [activeTab, setActiveTab] = useState<(typeof studioTabs)[number]>("原型");
+function ArtifactView({
+  activeTab,
+  activeViewport,
+}: {
+  activeTab: (typeof studioTabs)[number];
+  activeViewport?: string;
+}) {
+  if (activeTab === "PRD") {
+    return <PrdPreview />;
+  }
+
+  if (activeTab === "原型") {
+    return (
+      <div className="space-y-5">
+        <StudioPrototypePreview activeViewport={activeViewport} />
+        <PrdPrototypeMap />
+      </div>
+    );
+  }
+
+  if (activeTab === "调研") {
+    return <ResearchPreview />;
+  }
+
+  if (activeTab === "竞品") {
+    return <CompetitorsPreview />;
+  }
+
+  if (activeTab === "画像") {
+    return <PersonasPreview />;
+  }
+
+  return <RoadmapPreview />;
+}
+
+const artifactParamByTab: Record<(typeof studioTabs)[number], string> = {
+  PRD: "prd",
+  原型: "prototype",
+  调研: "research",
+  竞品: "competitors",
+  画像: "personas",
+  路线图: "roadmap",
+};
+
+const tabByArtifactParam: Record<string, (typeof studioTabs)[number]> = {
+  prd: "PRD",
+  prototype: "原型",
+  research: "调研",
+  competitors: "竞品",
+  personas: "画像",
+  roadmap: "路线图",
+};
+
+function getTabFromArtifactParam(artifact?: string) {
+  if (!artifact) return "原型";
+
+  return tabByArtifactParam[artifact] ?? "原型";
+}
+
+function getArtifactHref(tab: (typeof studioTabs)[number], activeViewport?: string) {
+  const artifact = artifactParamByTab[tab];
+
+  if (tab === "原型" && activeViewport) {
+    return `/app?artifact=${artifact}&viewport=${activeViewport}`;
+  }
+
+  return `/app?artifact=${artifact}`;
+}
+
+export function ArtifactCanvas({
+  activeArtifact,
+  activeViewport,
+}: {
+  activeArtifact?: string;
+  activeViewport?: string;
+}) {
+  const activeTab = getTabFromArtifactParam(activeArtifact);
+  const [activeMode, setActiveMode] = useState<"生成" | "修改" | "预览">("生成");
 
   return (
     <section className="min-h-screen bg-[#fbfaf7]/62">
-      <div className="z-20 flex flex-col gap-3 border-b border-black/10 bg-[#fbfaf7]/72 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="relative z-50 flex flex-col gap-3 border-b border-black/10 bg-[#fbfaf7]/72 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
           <Layers3 className="h-4 w-4 text-neutral-500" />
           <div className="min-w-0">
@@ -173,59 +253,94 @@ export function ArtifactCanvas() {
             <h1 className="truncate text-lg font-semibold">FinSight 智能投研工作台</h1>
           </div>
         </div>
-        <div className="liquid-glass flex w-full max-w-full gap-1 overflow-x-auto rounded-full p-1 sm:w-auto">
+        <div className="liquid-glass relative z-50 flex w-full max-w-full gap-1 overflow-x-auto rounded-full p-1 sm:w-auto">
           {studioTabs.map((tab) => (
-            <button
+            <Link
               className={cn(
-                "h-8 shrink-0 rounded-full px-3 text-sm font-medium text-neutral-500 transition hover:text-neutral-950",
-                activeTab === tab && "bg-neutral-100 text-neutral-950 shadow-sm",
+                "pointer-events-auto relative z-50 inline-flex h-8 shrink-0 items-center rounded-full px-3 text-sm font-medium text-neutral-500 transition hover:bg-white/70 hover:text-neutral-950 active:scale-[0.98]",
+                activeTab === tab && "bg-white text-neutral-950 shadow-sm ring-1 ring-black/5",
               )}
+              href={getArtifactHref(tab, activeViewport)}
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
+              scroll={false}
             >
               {tab}
-            </button>
+            </Link>
           ))}
         </div>
       </div>
 
       <div className="relative min-h-[980px] overflow-hidden bg-[linear-gradient(rgba(38,38,38,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(38,38,38,0.045)_1px,transparent_1px)] bg-[size:24px_24px] px-3 py-8 sm:px-5">
-        <div className="pointer-events-none absolute right-4 top-20 z-30 hidden w-[290px] lg:block 2xl:right-8 2xl:w-[310px]">
-          <div className="pointer-events-auto">
+        <div className="liquid-glass pointer-events-none absolute right-4 top-5 z-40 hidden rounded-full p-1 lg:flex 2xl:right-8">
+          <button
+            className={cn(
+              "pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition hover:bg-white active:scale-[0.98]",
+              activeMode === "生成"
+                ? "bg-white text-neutral-950 shadow-sm"
+                : "text-neutral-600 hover:text-black",
+            )}
+            onClick={() => setActiveMode("生成")}
+            type="button"
+          >
+            <Sparkles className="h-4 w-4" />
+            生成
+          </button>
+          <button
+            className={cn(
+              "pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition hover:bg-white active:scale-[0.98]",
+              activeMode === "修改"
+                ? "bg-white text-neutral-950 shadow-sm"
+                : "text-neutral-600 hover:text-black",
+            )}
+            onClick={() => setActiveMode("修改")}
+            type="button"
+          >
+            <Pencil className="h-4 w-4" />
+            修改
+          </button>
+          <button
+            className={cn(
+              "pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition hover:bg-white active:scale-[0.98]",
+              activeMode === "预览"
+                ? "bg-white text-neutral-950 shadow-sm"
+                : "text-neutral-600 hover:text-black",
+            )}
+            onClick={() => setActiveMode("预览")}
+            type="button"
+          >
+            <Eye className="h-4 w-4" />
+            预览
+          </button>
+          <button
+            className="pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-2 text-neutral-600 transition hover:bg-white hover:text-black active:scale-[0.98]"
+            type="button"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="pointer-events-none absolute right-4 top-36 z-30 hidden w-[290px] lg:block 2xl:right-8 2xl:w-[310px]">
+          <div className="pointer-events-none">
             <AgentPanel variant="floating" />
           </div>
         </div>
 
         <div className="mx-auto max-w-7xl">
           <div className="min-w-0 space-y-6">
-            <div className="mx-auto min-w-0 max-w-5xl overflow-hidden rounded-[18px] border-2 border-blue-500/90 bg-white/72 shadow-2xl shadow-black/10 backdrop-blur">
+            <div className="mx-auto min-w-0 max-w-5xl overflow-hidden rounded-[24px] border border-black/10 bg-white/72 shadow-2xl shadow-black/10 backdrop-blur">
               <div className="flex items-center justify-between border-b border-neutral-200 bg-white/78 px-4 py-2 backdrop-blur">
                 <div className="flex items-center gap-2 text-xs font-medium text-neutral-500">
-                  <MousePointer2 className="h-4 w-4 text-blue-600" />
-                  {activeTab}交付物
-                </div>
-                <div className="flex items-center gap-1">
-                  <button className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100">
-                    <Maximize2 className="h-4 w-4" />
-                  </button>
-                  <span className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white">
-                    1280 x 900
+                  <MousePointer2 className="h-4 w-4 text-neutral-500" />
+                  当前交付物
+                  <span className="rounded-full bg-neutral-950 px-2 py-1 text-white">
+                    {activeTab}
                   </span>
                 </div>
               </div>
-              <div className="min-w-0 bg-white/72 p-3 sm:p-6">
-                {activeTab === "PRD" ? <PrdPreview /> : null}
-                {activeTab === "原型" ? (
-                  <div className="space-y-5">
-                    <StudioPrototypePreview />
-                    <PrdPrototypeMap />
-                  </div>
-                ) : null}
-                {activeTab === "调研" ? <ResearchPreview /> : null}
-                {activeTab === "竞品" ? <CompetitorsPreview /> : null}
-                {activeTab === "画像" ? <PersonasPreview /> : null}
-                {activeTab === "路线图" ? <RoadmapPreview /> : null}
+              <div key={activeTab} className="min-w-0 bg-white/72 p-3 sm:p-6">
+                <ArtifactView activeTab={activeTab} activeViewport={activeViewport} />
               </div>
             </div>
 

@@ -2,12 +2,10 @@ import {
   ChevronDown,
   Download,
   FileText,
+  GalleryVerticalEnd,
   Play,
   Share2,
-  SquareStack,
   Sparkles,
-  Workflow,
-  GalleryVerticalEnd,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -16,7 +14,6 @@ import { StudioSidebar } from "@/components/studio/sidebar";
 import {
   studioDesignSystems,
   studioTemplates,
-  studioWorkflows,
 } from "@/lib/mock-data";
 
 function TopbarPicker({
@@ -30,10 +27,10 @@ function TopbarPicker({
 }) {
   return (
     <button
-      className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/10 bg-white/68 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white"
+      className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/8 bg-white/60 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white hover:shadow-md"
       type="button"
     >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition group-hover:bg-neutral-950 group-hover:text-white">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition group-hover:bg-neutral-950 group-hover:text-white">
         {icon}
       </span>
       <span className="min-w-0">
@@ -42,41 +39,45 @@ function TopbarPicker({
           {value}
         </span>
       </span>
-      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-hover:text-neutral-600" />
     </button>
   );
 }
 
-export function StudioShell() {
+export function StudioShell({
+  activeArtifact,
+  activeViewport,
+}: {
+  activeArtifact?: string;
+  activeViewport?: string;
+}) {
   return (
     <main className="min-h-screen text-[#191919]">
-      <header className="relative z-40 border-b border-black/10 bg-[rgba(255,255,255,0.56)] backdrop-blur-2xl">
-        <div className="flex h-14 items-center justify-between px-3 sm:px-4">
+      <header className="relative z-40 border-b border-black/8 bg-white/60 backdrop-blur-2xl">
+        <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-5">
+          {/* Left: Logo + Title */}
           <div className="flex min-w-0 items-center gap-3">
-            <Image
-              alt="PM Studio"
-              className="h-9 w-9 object-contain"
-              height={36}
-              src="/pm-studio-logo.png"
-              width={36}
-            />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-neutral-900 to-neutral-700 shadow-lg shadow-neutral-900/20">
+              <Image
+                alt="PM Studio"
+                className="h-6 w-6 object-contain brightness-0 invert"
+                height={24}
+                src="/pm-studio-logo.png"
+                width={24}
+              />
+            </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">PM Studio 工作台</p>
-              <p className="text-xs text-[#808080]">AI 产品方案工作台</p>
+              <p className="truncate text-sm font-semibold leading-tight">PM Studio</p>
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-400">
+                <span>工作台</span>
+                <span className="text-neutral-300">/</span>
+                <span className="truncate text-neutral-500">FinSight 智能投研工作台</span>
+              </div>
             </div>
           </div>
 
-          <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 px-3 lg:flex">
-            <TopbarPicker
-              icon={<SquareStack className="h-3.5 w-3.5" />}
-              label="项目"
-              value="FinSight 智能投研工作台"
-            />
-            <TopbarPicker
-              icon={<Workflow className="h-3.5 w-3.5" />}
-              label="工作流"
-              value={studioWorkflows[0]}
-            />
+          {/* Center: Pickers */}
+          <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 px-4 lg:flex">
             <TopbarPicker
               icon={<Sparkles className="h-3.5 w-3.5" />}
               label="设计系统"
@@ -91,21 +92,21 @@ export function StudioShell() {
 
           <div className="flex items-center gap-2">
             <button
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/10 bg-white/78 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
               type="button"
             >
               <Share2 className="h-4 w-4" />
               <span className="hidden sm:inline">分享</span>
             </button>
             <button
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/10 bg-white/78 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
               type="button"
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">导出</span>
             </button>
             <button
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-[#191919] px-3 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-black"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-neutral-950 px-4 text-sm font-medium text-white shadow-lg shadow-neutral-900/20 transition hover:-translate-y-0.5 hover:bg-black hover:shadow-xl hover:shadow-neutral-900/25"
               type="button"
             >
               <Play className="h-4 w-4" />
@@ -129,7 +130,7 @@ export function StudioShell() {
               FinSight 智能投研工作台
             </div>
           </div>
-          <ArtifactCanvas />
+          <ArtifactCanvas activeArtifact={activeArtifact} activeViewport={activeViewport} />
         </section>
       </div>
     </main>

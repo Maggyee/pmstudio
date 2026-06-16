@@ -13,7 +13,7 @@ import { faqs, featureCards, workflowSteps } from "@/lib/mock-data";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen overflow-hidden">
+    <main className="min-h-screen overflow-x-clip">
       <SiteHeader />
 
       <section className="mx-auto flex max-w-7xl flex-col px-5 pb-20 pt-12 sm:px-6 md:pt-16 lg:px-8">
@@ -46,7 +46,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="scroll-reveal border-y border-white/45 bg-white/34 py-16 backdrop-blur-xl" id="workflow">
+      <section className="scroll-reveal py-16" id="workflow">
         <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
           <SectionHeading
             description="围绕产品经理最常用的交付链路，把生成结果组织成可讨论的模块。"
@@ -81,7 +81,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="scroll-reveal rounded-t-[4rem] border-t border-white/55 bg-white/30 py-16 backdrop-blur-xl">
+      <section className="scroll-reveal py-16">
         <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-8">
           <SectionHeading eyebrow="常见问题" title="你可能已经在想这些问题" />
           <div className="mt-10 grid gap-4 md:grid-cols-3">

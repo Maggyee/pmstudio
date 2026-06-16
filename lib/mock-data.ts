@@ -229,12 +229,13 @@ export const studioProjects = [
 
 export const studioWorkflows = [
   "完整产品方案包",
-  "PRD",
-  "原型",
-  "竞品分析",
-  "市场调研",
-  "用户画像",
-  "上市策略",
+  "需求分析 Agent",
+  "PRD Agent",
+  "竞品分析 Agent",
+  "市场调研 Agent",
+  "原型设计 Agent",
+  "价值评估 Agent",
+  "汇报材料 Agent",
 ];
 
 export const studioDesignSystems = [
