@@ -27,7 +27,7 @@ export function AgentPanel({ variant = "column" }: { variant?: "column" | "float
         </div>
         <div className={cn("space-y-3 text-sm leading-6 text-neutral-700", floating && "text-[13px] leading-6")}>
           <p>
-            Codex / Claude Code 接入、需求分析、PRD、竞品、调研、原型和汇报材料 Agent 正在协同生成产品方案包。
+            需求分析、PRD、竞品、调研、原型和汇报材料 Agent 正在协同生成 FinSight 示例产品方案。
           </p>
           <ul className="space-y-2">
             <li className="flex gap-2">

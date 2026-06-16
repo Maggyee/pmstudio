@@ -40,13 +40,13 @@ function CompetitorsPreview() {
         <aside className="bg-neutral-950 p-6 text-white">
           <h2 className="text-xl font-semibold">竞品机会矩阵</h2>
           <p className="mt-3 text-sm leading-7 text-white/65">
-            通用 AI 工具强在生成，设计工作台强在 artifact。PM Studio 的机会在产品经理从想法到评审材料的完整链路。
+            金融数据终端强在数据深度，自动化投顾强在配置体验。FinSight 的机会在顾问工作流和客户解释层。
           </p>
           <div className="mt-6 grid grid-cols-2 gap-2 text-xs">
-            <span className="rounded-full bg-white/10 px-3 py-2">PRD</span>
-            <span className="rounded-full bg-white/10 px-3 py-2">原型</span>
-            <span className="rounded-full bg-white/10 px-3 py-2">竞品</span>
-            <span className="rounded-full bg-white/10 px-3 py-2">汇报</span>
+            <span className="rounded-full bg-white/10 px-3 py-2">数据深度</span>
+            <span className="rounded-full bg-white/10 px-3 py-2">客户沟通</span>
+            <span className="rounded-full bg-white/10 px-3 py-2">合规审阅</span>
+            <span className="rounded-full bg-white/10 px-3 py-2">任务闭环</span>
           </div>
         </aside>
         <div className="overflow-x-auto p-5">
@@ -88,7 +88,7 @@ function PersonasPreview() {
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-neutral-950">用户画像与服务路径</h2>
-          <p className="mt-1 text-sm text-neutral-500">从产品经理到创业者，覆盖想法验证和方案评审的核心角色。</p>
+          <p className="mt-1 text-sm text-neutral-500">从会前准备到会后跟进，覆盖财富管理团队的核心协作角色。</p>
         </div>
         <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-500">
           3 个核心角色
@@ -126,7 +126,7 @@ function RoadmapPreview() {
     <div className="rounded-[28px] border border-black/10 bg-white p-6">
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-neutral-950">产品路线图</h2>
-        <p className="mt-2 text-sm text-neutral-500">围绕产品方案工作流，从一站式生成推进到多 Agent 编排和团队项目库。</p>
+        <p className="mt-2 text-sm text-neutral-500">围绕顾问工作流，从可用的会前准备工具推进到机构级投研协作系统。</p>
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
       {studioRoadmap.map((column) => (
@@ -250,7 +250,7 @@ export function ArtifactCanvas({
           <Layers3 className="h-4 w-4 text-neutral-500" />
           <div className="min-w-0">
             <p className="text-xs text-neutral-500">交付物画布</p>
-            <h1 className="truncate text-lg font-semibold">PM Studio AI 产品经理工作台</h1>
+            <h1 className="truncate text-lg font-semibold">FinSight 智能投研工作台</h1>
           </div>
         </div>
         <div className="liquid-glass relative z-50 flex w-full max-w-full gap-1 overflow-x-auto rounded-full p-1 sm:w-auto">

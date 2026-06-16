@@ -71,7 +71,7 @@ export function StudioShell({
               <div className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-400">
                 <span>工作台</span>
                 <span className="text-neutral-300">/</span>
-                <span className="truncate text-neutral-500">PM Studio AI 产品经理工作台</span>
+                <span className="truncate text-neutral-500">FinSight 智能投研工作台</span>
               </div>
             </div>
           </div>
@@ -127,7 +127,7 @@ export function StudioShell({
           <div className="border-b border-[#eeeeee] bg-white/70 px-4 py-3 lg:hidden">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <FileText className="h-4 w-4 text-[#12a7ff]" />
-              PM Studio AI 产品经理工作台
+              FinSight 智能投研工作台
             </div>
           </div>
           <ArtifactCanvas activeArtifact={activeArtifact} activeViewport={activeViewport} />

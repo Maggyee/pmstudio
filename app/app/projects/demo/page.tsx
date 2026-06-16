@@ -77,7 +77,7 @@ export default function DemoProjectPage() {
                 <div className="bg-neutral-950 p-6 text-white">
                   <p className="text-sm font-semibold">PRD Brief</p>
                   <p className="mt-4 text-sm leading-7 text-white/65">
-                    围绕产品想法输入、Agent 执行过程、PRD 原型联动和项目材料导出建立 MVP 范围。
+                    围绕财富顾问会前准备、配置解释和会后跟进建立 MVP 范围。
                   </p>
                 </div>
                 <div className="grid gap-4 p-5 md:grid-cols-3">
@@ -96,7 +96,7 @@ export default function DemoProjectPage() {
             <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
               <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">功能范围</h2>
-                <Badge>PM 工作流</Badge>
+                <Badge>顾问工作流</Badge>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {scopeItems.map((item) => (
@@ -114,7 +114,7 @@ export default function DemoProjectPage() {
             <section className="rounded-[28px] border border-black/10 bg-white p-5 shadow-sm">
               <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-lg font-semibold">市场机会</h2>
-                <span className="text-xs text-neutral-500">AI 产品工作台切入点</span>
+                <span className="text-xs text-neutral-500">财富科技切入点</span>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 {marketResearch.map((item) => (
@@ -206,7 +206,7 @@ export default function DemoProjectPage() {
             <div>
               <h2 className="text-2xl font-semibold text-neutral-950">原型预览</h2>
               <p className="mt-2 text-sm text-neutral-600">
-                根据 PRD 功能、用户路径和页面结构生成的 AI 产品经理工作台预览。
+                根据客户画像、资产配置目标和合规要求生成的金融工作台预览。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

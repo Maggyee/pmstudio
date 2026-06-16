@@ -55,7 +55,7 @@ export function StudioSidebar() {
     <div className="border-b border-black/10 p-4">
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold">PM Studio AI 产品经理工作台</p>
+          <p className="text-sm font-semibold">FinSight 智能投研工作台</p>
           <p className="text-xs text-neutral-500">产品方案工作区</p>
         </div>
         <button
@@ -68,7 +68,7 @@ export function StudioSidebar() {
 
       <div className="space-y-5">
         <SidebarGroup
-          activeItem="PM Studio AI 产品经理工作台"
+          activeItem="FinSight 智能投研工作台"
           icon={<FolderKanban className="h-3.5 w-3.5" />}
           items={studioProjects}
           title="项目"

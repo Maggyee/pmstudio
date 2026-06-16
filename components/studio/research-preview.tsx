@@ -13,7 +13,7 @@ export function ResearchPreview() {
               市场规模
             </div>
             <p className="mt-4 text-sm leading-7 text-white/65">
-              以产品协作、AI 文档和原型工具作为上层市场，优先切入产品经理前期方案准备场景。
+              以财富科技、投研工具和顾问效率软件作为上层市场，优先切入中小财富团队的日常客户服务场景。
             </p>
           </div>
           <div className="space-y-5 p-6">

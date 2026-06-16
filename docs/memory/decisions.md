@@ -29,3 +29,9 @@ Reason: this keeps the product logic readable by Codex, Claude Code, and future 
 Decision: clone OpenDesign and PM Skills under `references/sources/`, then ignore that directory in Git.
 
 Reason: the source is useful for fast development reference, but vendoring thousands of external files into this small prototype would bloat history and make PM Studio look like a fork.
+
+## 2026-06-16: Keep FinSight As The Demo Generated Project
+
+Decision: keep PM Studio as the competition product, while using FinSight as the concrete generated demo project inside the workspace.
+
+Reason: an AI efficiency competition needs a clear product story and a tangible example. The platform explains the productivity gain; the FinSight artifact proves the workflow can generate a complete, inspectable product pack.
