@@ -44,6 +44,7 @@ npm run build
 - Memory index: `docs/memory/README.md`
 - Harness notes: `docs/engineering/harness.md`
 - GitHub sync notes: `docs/engineering/github-sync.md`
+- Reference source notes: `references/README.md`
 
 The lightweight harness lives in `lib/agent-harness.ts` and is exposed through:
 

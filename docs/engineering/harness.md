@@ -18,6 +18,8 @@ OpenDesign's public source describes an adapter layer where the app delegates th
 - `app/api/harness/route.ts`: GET endpoint that exposes available providers and workflows.
 - `app/api/generate/route.ts`: POST endpoint that returns a mock artifact pack for `idea-to-product-pack` or `prd-to-prototype-linker`.
 - `skills/*/SKILL.md`: project-local workflow instructions for future prompt or native skill injection.
+- `references/sources/open-design`: ignored local checkout for agent adapter and artifact preview reference code.
+- `references/sources/pm-skills`: ignored local checkout for PM workflow reference skills.
 
 ## Adapter Contract
 

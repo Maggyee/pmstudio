@@ -23,3 +23,9 @@ Reason: design drift would be expensive once artifact preview, edit mode, and mu
 Decision: represent PM skills as local `skills/*/SKILL.md` workflows first.
 
 Reason: this keeps the product logic readable by Codex, Claude Code, and future OpenDesign-style adapters without adding runtime complexity too early.
+
+## 2026-06-16: Keep External Reference Source Local And Ignored
+
+Decision: clone OpenDesign and PM Skills under `references/sources/`, then ignore that directory in Git.
+
+Reason: the source is useful for fast development reference, but vendoring thousands of external files into this small prototype would bloat history and make PM Studio look like a fork.

@@ -22,6 +22,8 @@ OpenDesign reference strategy:
 - Follow OpenDesign's adapter-first thinking: keep agent provider detection, capability negotiation, and run output as a contract.
 - Do not import the OpenDesign daemon architecture until this project needs real local CLI spawning.
 - Treat Codex and Claude Code as first-class future adapters; current implementation exposes a lightweight harness contract and mock generation endpoint.
+- Local OpenDesign source is available at `references/sources/open-design` when that ignored checkout exists.
+- Local PM Skills source is available at `references/sources/pm-skills` when that ignored checkout exists.
 
 ## Read Order
 
@@ -36,6 +38,7 @@ Layer 1, read before planning or implementing:
 - `docs/progress/README.md`
 - `docs/memory/README.md`
 - `docs/engineering/harness.md`
+- `references/README.md`
 
 Layer 2, read only when relevant:
 

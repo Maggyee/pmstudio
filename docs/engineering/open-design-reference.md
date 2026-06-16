@@ -2,6 +2,8 @@
 
 Reference source: `https://github.com/nexu-io/open-design`.
 
+Local checkout: `references/sources/open-design`.
+
 ## What To Copy Conceptually
 
 - `DESIGN.md` as a brand and artifact-generation contract.
