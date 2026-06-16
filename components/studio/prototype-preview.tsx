@@ -1,0 +1,206 @@
+"use client";
+
+import { useState } from "react";
+import {
+  ArrowRight,
+  Check,
+  Code2,
+  Monitor,
+  PanelTop,
+  RefreshCw,
+  Smartphone,
+  Tablet,
+} from "lucide-react";
+
+import { prototypeHighlights } from "@/lib/mock-data";
+import { cn } from "@/lib/utils";
+
+const viewports = [
+  { label: "桌面", icon: Monitor, width: "max-w-5xl" },
+  { label: "平板", icon: Tablet, width: "max-w-2xl" },
+  { label: "手机", icon: Smartphone, width: "max-w-sm" },
+];
+
+export function StudioPrototypePreview() {
+  const [viewport, setViewport] = useState("桌面");
+  const selectedViewport =
+    viewports.find((item) => item.label === viewport) ?? viewports[0];
+  const isMobile = viewport === "手机";
+  const isTablet = viewport === "平板";
+
+  return (
+    <div className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-neutral-500">原型交付物</p>
+          <h2 className="mt-1 text-lg font-semibold text-neutral-950">金融投研工作台变体 A</h2>
+        </div>
+        <div className="flex w-full overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-100 p-1 md:w-auto">
+          {viewports.map((item) => {
+            const Icon = item.icon;
+            const active = item.label === viewport;
+
+            return (
+              <button
+                className={cn(
+                  "flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium text-neutral-500 transition md:flex-none",
+                  active && "bg-white text-neutral-950 shadow-sm",
+                )}
+                key={item.label}
+                onClick={() => setViewport(item.label)}
+                type="button"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.10),transparent_32%),linear-gradient(135deg,#f3f4f6,#ffffff)] p-3 sm:p-5">
+        <div className={cn("mx-auto w-full min-w-0 transition-all duration-300", selectedViewport.width)}>
+          <div className="min-w-0 overflow-hidden rounded-xl border border-zinc-800 bg-white text-zinc-950 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+              </div>
+              <span className="text-xs font-medium text-zinc-500">finsight.pm</span>
+            </div>
+
+            <div className={cn("min-w-0 p-5", !isMobile && "sm:p-8")}>
+              <nav className={cn("flex items-center justify-between", isMobile ? "mb-7" : "mb-8")}>
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-xs text-white">
+                    LP
+                  </span>
+                  FinSight
+                </div>
+                <div
+                  className={cn(
+                    "hidden items-center gap-5 text-xs font-medium text-zinc-500 md:flex",
+                    (isMobile || isTablet) && "md:hidden",
+                  )}
+                >
+                  <span>市场雷达</span>
+                  <span>配置建议</span>
+                  <span>产品池</span>
+                  <span>合规审阅</span>
+                </div>
+                <button
+                  className={cn(
+                    "h-9 rounded-md bg-zinc-950 px-3 text-xs font-medium text-white",
+                    isMobile ? "hidden" : "hidden sm:block",
+                  )}
+                >
+                  生成简报
+                </button>
+              </nav>
+
+              <section
+                className={cn(
+                  "grid gap-8",
+                  !isMobile && !isTablet && "2xl:grid-cols-[1fr_0.85fr] 2xl:items-center",
+                )}
+              >
+                <div>
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    <PanelTop className="h-3.5 w-3.5" />
+                    AI 财富投研工作台
+                  </div>
+                  <h3
+                    className={cn(
+                      "break-words font-semibold tracking-normal text-zinc-950",
+                      isMobile ? "text-2xl" : isTablet ? "text-3xl sm:text-4xl" : "text-3xl sm:text-4xl 2xl:text-5xl",
+                    )}
+                  >
+                    把市场信号，变成客户可理解的配置建议。
+                  </h3>
+                  <p
+                    className={cn(
+                      "mt-4 max-w-xl text-sm text-zinc-600",
+                      isMobile ? "leading-6" : "leading-7",
+                    )}
+                  >
+                    在一个工作区内生成市场简报、客户画像、资产配置草案、风险提示和跟进任务。
+                  </p>
+                  <div className={cn("mt-5 flex flex-col gap-2", !isMobile && "sm:flex-row")}>
+                    <div className="min-h-10 flex-1 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-500">
+                      为稳健型客户生成本周配置复盘...
+                    </div>
+                    <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 text-sm font-medium text-white">
+                      生成简报
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-semibold">顾问交付物</p>
+                    <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                      5 份文件
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {["市场简报.pdf", "配置建议.md", "风险提示.txt", "跟进任务.csv"].map(
+                      (item) => (
+                        <div
+                          className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm"
+                          key={item}
+                        >
+                          <span>{item}</span>
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <div
+                className={cn(
+                  "mt-8 grid gap-3",
+                  isMobile ? "grid-cols-1" : "sm:grid-cols-2 xl:grid-cols-4",
+                )}
+              >
+                {prototypeHighlights.map((item) => (
+                  <div className="rounded-lg border border-zinc-200 bg-white p-3" key={item}>
+                    <Check className="mb-2 h-4 w-4 text-emerald-600" />
+                    <p className="text-sm font-medium text-zinc-800">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 overflow-x-auto border-t border-neutral-200 bg-white p-4 sm:justify-end">
+        <button
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          type="button"
+        >
+          <RefreshCw className="h-4 w-4" />
+          重新生成
+        </button>
+        <button
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          type="button"
+        >
+          <PanelTop className="h-4 w-4" />
+          编辑提示词
+        </button>
+        <button
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black"
+          type="button"
+        >
+          <Code2 className="h-4 w-4" />
+          导出 HTML
+        </button>
+      </div>
+    </div>
+  );
+}
