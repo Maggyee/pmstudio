@@ -34,15 +34,20 @@ The project should preserve these concepts:
 ## MVP Provider Plan
 
 1. Mock provider for UI and API development.
-2. Codex adapter through `codex exec --cwd <dir> "<prompt>"`.
-3. Claude Code adapter through stream-json mode.
-4. API fallback only after the product flow is stable.
+2. Local provider detection for Codex and Claude Code.
+3. Optional Codex adapter through `codex exec --cwd <dir> "<prompt>"`.
+4. Optional Claude Code adapter through stream-json mode.
+5. API fallback only after the product flow is stable.
 
 ## MVP Workflow Plan
 
 1. `idea-to-product-pack`: one idea to complete product plan.
 2. `prd-to-prototype-linker`: PRD to user flow, IA, and prototype preview.
 3. `project-summarizer`: custom summary and handoff workflow.
+
+## Rapid Build Decision
+
+For the 2026-06-21 competition deadline, PM Studio should first ship a deterministic, demo-ready product-pack generator. Real CLI spawning is useful but not required for the judging story. The UI and artifact model should be built so a Codex / Claude adapter can replace the mock provider later without rewriting screens.
 
 ## Non-Goals For This Sprint
 

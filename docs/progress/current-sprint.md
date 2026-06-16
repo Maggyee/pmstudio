@@ -21,11 +21,12 @@ Sprint window: 2026-06-16 to 2026-06-21.
 
 ## In Progress
 
-- Converting the static PM Studio prototype into a clear demo of agent intake, product pack output, and PRD-to-prototype linkage.
+- Converting the static PM Studio prototype into a competition-ready demo of agent intake, product pack output, and PRD-to-prototype linkage.
+- Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred
 
-- Real Codex/Claude Code subprocess spawning.
+- Real Codex/Claude Code subprocess spawning if it threatens the demo timeline.
 - Persistent project storage.
 - Authentication and workspace sharing.
 - Automated tests beyond lint/build.

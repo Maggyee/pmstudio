@@ -43,6 +43,7 @@ Layer 1, read before planning or implementing:
 Layer 2, read only when relevant:
 
 - `docs/progress/current-sprint.md`
+- `docs/progress/rapid-delivery-plan.md`
 - `docs/progress/roadmap.md`
 - `docs/memory/project-context.md`
 - `docs/memory/decisions.md`
