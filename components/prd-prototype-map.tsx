@@ -7,7 +7,7 @@ export function PrdPrototypeMap() {
     <div className="liquid-card overflow-hidden rounded-[2rem]">
       <div className="border-b border-white/50 bg-white/28 px-5 py-4 backdrop-blur sm:px-6">
         <p className="text-xs font-medium text-[#808080]">PRD 到原型的生成链路</p>
-        <h3 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-black">
+        <h3 className="mt-2 text-2xl font-semibold tracking-normal text-black">
           对照 PRD 要点，生成可评审原型
         </h3>
       </div>

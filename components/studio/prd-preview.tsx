@@ -31,7 +31,7 @@ export function PrdPreview() {
           </div>
           <div className="mt-5 flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-2 text-xs text-emerald-100">
             <ShieldCheck className="h-4 w-4" />
-            合规提示、审阅状态和客户跟进记录进入 MVP 范围
+            Idea-to-Product Pack、PRD 原型联动和导出材料进入 MVP 范围
           </div>
         </section>
 
