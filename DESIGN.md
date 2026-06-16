@@ -4,6 +4,15 @@ Status: confirmed on 2026-06-16.
 
 This is the visual and interaction contract for PM Studio. Future screens, prototypes, and generated artifacts should read this file before making UI decisions.
 
+## 0. Current UI Preservation
+
+The current frontend design is the baseline. Extend it instead of redesigning it.
+
+- Keep the existing warm off-white page environment, subtle blue/amber background wash, liquid-glass toolbar treatment, translucent cards, soft shadows, black primary CTAs, blue active states, and emerald success states.
+- Keep the current component feel in `app/globals.css`: `liquid-glass`, `liquid-card`, `liquid-card-interactive`, subtle scroll reveal, and restrained hover lift.
+- New screens should look like they belong to the current prototype. Do not replace the visual system with a new palette, new heavy dashboard style, dark mode default, or unrelated brand direction.
+- Product work should mostly add structure, states, agent workflow surfaces, editing controls, and artifact previews around the current visual design.
+
 ## 1. Brand Intent
 
 - Product identity: PM Studio is an AI-native product planning workspace that turns ideas and PRDs into product packs, reviewable prototypes, research notes, competitor directions, roadmaps, and summaries.
