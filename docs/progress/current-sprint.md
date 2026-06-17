@@ -35,6 +35,7 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Export buttons now POST the current Product Pack to `/api/export`, so locally edited artifacts can be downloaded.
 - `/api/generate` now accepts `providerId` and returns adapter metadata with run id and run mode.
 - Workspace topbar now follows OpenDesign's AgentPicker placement for provider selection: Mock, Codex, Claude Code, and API fallback are run-context choices instead of bottom-input controls.
+- Workspace topbar AgentPicker now reads `/api/harness` provider detection, shows available/dry-run status, and supports manual refresh.
 - Codex adapter dry-run now builds the OpenDesign/PM Skills-informed prompt and can optionally attempt local `codex exec` only when `PMSTUDIO_ENABLE_LOCAL_AGENT=1`.
 
 ## In Progress

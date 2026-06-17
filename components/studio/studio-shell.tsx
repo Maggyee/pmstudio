@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bot,
   ChevronDown,
@@ -8,6 +8,7 @@ import {
   FileText,
   GalleryVerticalEnd,
   Play,
+  RefreshCw,
   Share2,
   Sparkles,
 } from "lucide-react";
@@ -17,33 +18,72 @@ import { ArtifactCanvas } from "@/components/studio/artifact-canvas";
 import { StudioSidebar } from "@/components/studio/sidebar";
 import { studioDesignSystems } from "@/lib/mock-data";
 import type {
+  AgentProvider,
   AgentProviderId,
   HarnessEvent,
   HarnessWorkflow,
 } from "@/lib/agent-harness";
 import type { ProductPack } from "@/lib/product-pack";
+import { cn } from "@/lib/utils";
 
-const providerOptions: Array<{
-  label: string;
-  value: AgentProviderId;
-}> = [
+const fallbackProviders: AgentProvider[] = [
   {
-    label: "Mock",
-    value: "mock",
+    capabilities: {
+      fileEditing: false,
+      nativeSkillLoading: false,
+      permissionMode: "none",
+      resume: false,
+      streaming: true,
+    },
+    command: "in-process",
+    displayName: "Mock PM Agent",
+    id: "mock",
+    status: "available",
   },
   {
-    label: "Codex",
-    value: "codex",
+    capabilities: {
+      fileEditing: true,
+      nativeSkillLoading: true,
+      permissionMode: "strict",
+      resume: false,
+      streaming: true,
+    },
+    command: "codex exec --cwd <artifact-dir> <prompt>",
+    displayName: "Codex",
+    id: "codex",
+    status: "planned",
   },
   {
-    label: "Claude Code",
-    value: "claude-code",
+    capabilities: {
+      fileEditing: true,
+      nativeSkillLoading: true,
+      permissionMode: "strict",
+      resume: true,
+      streaming: true,
+    },
+    command: "claude --print --output-format stream-json --cwd <artifact-dir> <prompt>",
+    displayName: "Claude Code",
+    id: "claude-code",
+    status: "planned",
   },
   {
-    label: "API fallback",
-    value: "api-fallback",
+    capabilities: {
+      fileEditing: false,
+      nativeSkillLoading: false,
+      permissionMode: "permissive",
+      resume: false,
+      streaming: true,
+    },
+    command: "server-side provider call",
+    displayName: "API Fallback",
+    id: "api-fallback",
+    status: "planned",
   },
 ];
+
+type HarnessApiResponse = {
+  providers?: AgentProvider[];
+};
 
 function TopbarPicker({
   label,
@@ -73,46 +113,78 @@ function TopbarPicker({
   );
 }
 
-function TopbarSelect({
-  label,
-  value,
-  icon,
-  options,
+function getProviderStatusLabel(provider?: AgentProvider, loading?: boolean) {
+  if (loading) return "检测中";
+  if (!provider) return "未检测";
+  if (provider.status === "available") return "available";
+
+  return "dry-run";
+}
+
+function AgentProviderPicker({
+  loading,
   onChange,
+  onRefresh,
+  providers,
+  value,
 }: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  options: Array<{ label: string; value: string }>;
-  onChange: (value: string) => void;
+  loading: boolean;
+  onChange: (value: AgentProviderId) => void;
+  onRefresh: () => void;
+  providers: AgentProvider[];
+  value: AgentProviderId;
 }) {
-  const activeOption = options.find((option) => option.value === value);
+  const currentProvider =
+    providers.find((provider) => provider.id === value) ??
+    fallbackProviders.find((provider) => provider.id === value);
+  const statusLabel = getProviderStatusLabel(currentProvider, loading);
 
   return (
-    <label className="group relative inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/8 bg-white/60 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white hover:shadow-md">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition group-hover:bg-neutral-950 group-hover:text-white">
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[10px] leading-none text-neutral-400">{label}</span>
-        <span className="mt-0.5 block max-w-[118px] truncate font-medium text-neutral-800 xl:max-w-[150px]">
-          {activeOption?.label ?? value}
+    <div className="inline-flex items-center gap-1">
+      <label className="group relative inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/8 bg-white/60 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white hover:shadow-md">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition group-hover:bg-neutral-950 group-hover:text-white">
+          <Bot className="h-3.5 w-3.5" />
         </span>
-      </span>
-      <select
-        aria-label={label}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
+        <span className="min-w-0">
+          <span className="block text-[10px] leading-none text-neutral-400">智能体</span>
+          <span className="mt-0.5 flex max-w-[142px] items-center gap-1.5 truncate font-medium text-neutral-800 xl:max-w-[170px]">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 shrink-0 rounded-full",
+                currentProvider?.status === "available" ? "bg-emerald-500" : "bg-amber-400",
+                loading && "bg-neutral-300",
+              )}
+            />
+            <span className="truncate">{currentProvider?.displayName ?? value}</span>
+            <span className="shrink-0 text-[10px] font-medium text-neutral-400">
+              {statusLabel}
+            </span>
+          </span>
+        </span>
+        <select
+          aria-label="智能体"
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          onChange={(event) => onChange(event.target.value as AgentProviderId)}
+          value={value}
+        >
+          {providers.map((provider) => (
+            <option key={provider.id} value={provider.id}>
+              {provider.displayName} · {getProviderStatusLabel(provider)}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-hover:text-neutral-600" />
+      </label>
+      <button
+        aria-label="重新检测智能体"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/8 bg-white/60 text-neutral-500 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-neutral-950 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={loading}
+        onClick={onRefresh}
+        type="button"
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-hover:text-neutral-600" />
-    </label>
+        <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+      </button>
+    </div>
   );
 }
 
@@ -132,6 +204,66 @@ export function StudioShell({
   const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
   const workflowTitle = activeWorkflow?.title ?? "Idea-to-Product Pack";
   const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
+  const [providers, setProviders] = useState<AgentProvider[]>(fallbackProviders);
+  const [providersLoading, setProvidersLoading] = useState(true);
+
+  async function refreshProviders() {
+    setProvidersLoading(true);
+
+    try {
+      const response = await fetch("/api/harness", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Provider detection failed");
+      }
+
+      const data = (await response.json()) as HarnessApiResponse;
+
+      if (data.providers?.length) {
+        setProviders(data.providers);
+      }
+    } catch {
+      setProviders(fallbackProviders);
+    } finally {
+      setProvidersLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProviders() {
+      try {
+        const response = await fetch("/api/harness", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const data = (await response.json()) as HarnessApiResponse;
+
+        if (active && data.providers?.length) {
+          setProviders(data.providers);
+        }
+      } catch {
+        if (active) {
+          setProviders(fallbackProviders);
+        }
+      } finally {
+        if (active) {
+          setProvidersLoading(false);
+        }
+      }
+    }
+
+    void loadProviders();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <main className="min-h-screen text-[#191919]">
@@ -170,11 +302,11 @@ export function StudioShell({
               label="工作流"
               value={workflowTitle}
             />
-            <TopbarSelect
-              icon={<Bot className="h-3.5 w-3.5" />}
-              label="智能体"
-              onChange={(value) => setSelectedProvider(value as AgentProviderId)}
-              options={providerOptions}
+            <AgentProviderPicker
+              loading={providersLoading}
+              onChange={setSelectedProvider}
+              onRefresh={refreshProviders}
+              providers={providers}
               value={selectedProvider}
             />
           </div>
