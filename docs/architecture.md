@@ -15,21 +15,22 @@ PM Agent Studio combines two reference systems into one PM-focused AI workspace:
 | PM workflow registry | `lib/pm-workflows.ts` | Idea-to-Product Pack, PRD to Prototype, Project Summary, and next workflows |
 | Product Pack data | `lib/product-pack.ts` | typed FinSight demo pack shared by API and workspace UI |
 | Harness contract | `lib/agent-harness.ts` | providers, capabilities, workflows, events, generated artifacts, Product Pack output |
-| API surface | `app/api/harness/route.ts`, `app/api/generate/route.ts` | workflow discovery and deterministic mock generation |
+| API surface | `app/api/harness/route.ts`, `app/api/generate/route.ts`, `app/api/export/route.ts` | provider detection, workflow discovery, deterministic mock generation, and artifact export |
 | Studio UI | `app/app`, `components/studio/*` | OpenDesign-inspired workspace, Product Pack summary, artifact canvas, Product Pack-driven tabs, workflow sidebar, and harness event timeline |
 
 ## MVP Runtime
 
 The current MVP is deterministic:
 
-1. `/api/harness` exposes providers, reference architecture, MVP workflows, and future workflow registry entries.
+1. `/api/harness` detects local Codex / Claude Code CLIs, then exposes providers, reference architecture, MVP workflows, and future workflow registry entries.
 2. `/api/generate` accepts a workflow id and product idea, then returns mock events, compatibility artifacts, and a typed Product Pack.
-3. `/app` renders the current FinSight demo workspace using the typed Product Pack and existing visual design baseline.
+3. `/api/export` accepts an artifact id and format, then returns deterministic Markdown, JSON, HTML, or placeholder PDF/PPTX metadata.
+4. `/app` renders the current FinSight demo workspace using the typed Product Pack and existing visual design baseline.
 
 No real AI provider, subprocess manager, authentication, database, payment, or external OpenDesign API is required for the 2026-06-21 sprint.
 
 ## Next Integration Steps
 
-1. Add Codex / Claude Code provider detection behind the current adapter contract.
-2. Add deterministic export endpoints for Markdown, HTML, JSON, PDF, and PPTX placeholders.
-3. Add a run panel that can call `/api/generate` from the workspace instead of only rendering the server-built default run.
+1. Wire artifact action buttons to `/api/export`.
+2. Add a run panel that can call `/api/generate` from the workspace instead of only rendering the server-built default run.
+3. Replace PDF/PPTX placeholders with binary renderers after the judging demo flow is stable.

@@ -26,10 +26,12 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Sidebar project/workflow navigation now reads Product Pack metadata and PM workflow registry.
 - Agent orchestration panel now renders harness events from the current generated run.
 - Artifact action buttons now derive export options from each Product Pack artifact.
+- `/api/harness` now detects local Codex and Claude Code CLI availability.
+- `/api/export` now provides deterministic Markdown, JSON, HTML, and placeholder PDF/PPTX artifact exports.
 
 ## In Progress
 
-- Preparing provider detection and deterministic export endpoints for the next MVP slice.
+- Preparing workspace buttons to call `/api/export` and a run panel to call `/api/generate`.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

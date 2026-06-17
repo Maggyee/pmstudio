@@ -25,10 +25,13 @@ PM Skills provides the PM reasoning and output structure. The harness converts r
 ## Current Implementation
 
 - `lib/agent-harness.ts`: provider-neutral types, planned adapters, reference architecture, workflow definitions, output artifacts, and a mock generator.
+- `lib/provider-detection.ts`: server-only helper that detects local Codex and Claude Code CLIs for `/api/harness`.
+- `lib/product-pack-export.ts`: deterministic Product Pack export renderer for Markdown, JSON, HTML, and placeholder PDF/PPTX metadata.
 - `lib/pm-skills-registry.ts`: local registry that maps raw PM Skills source skills to user-friendly actions and PM Studio use cases.
 - `lib/pm-workflows.ts`: user-facing workflow registry that turns PM Skills method references into PM Studio product workflows.
-- `app/api/harness/route.ts`: GET endpoint that exposes available providers and workflows.
+- `app/api/harness/route.ts`: GET endpoint that exposes detected providers and workflows.
 - `app/api/generate/route.ts`: POST endpoint that returns a mock artifact pack for `idea-to-product-pack` or `prd-to-prototype-linker`.
+- `app/api/export/route.ts`: GET/POST endpoint that exports Product Pack artifacts by `artifact` and `format`.
 - `skills/*/SKILL.md`: project-local workflow instructions for future prompt or native skill injection.
 - `references/sources/open-design`: ignored local checkout for agent adapter and artifact preview reference code.
 - `references/sources/pm-skills`: ignored local checkout for PM workflow reference skills.
@@ -54,6 +57,8 @@ The front end should consume workflow names and `userFacingActions`. It should n
 3. Optional Codex adapter through `codex exec --cwd <dir> "<prompt>"`.
 4. Optional Claude Code adapter through stream-json mode.
 5. API fallback only after the product flow is stable.
+
+Detection is intentionally lightweight: `/api/harness` marks Codex or Claude Code as available only when their CLI binaries are present in PATH. It does not spawn a real agent run yet.
 
 ## MVP Workflow Plan
 
