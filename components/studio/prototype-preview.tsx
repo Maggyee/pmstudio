@@ -29,9 +29,19 @@ function getViewportFromParam(viewport?: string) {
 
 export function StudioPrototypePreview({
   activeViewport,
+  exportHref,
+  isExporting,
+  onEditPrompt,
+  onExportHtml,
+  onRegenerate,
   productPack,
 }: {
   activeViewport?: string;
+  exportHref?: string;
+  isExporting?: boolean;
+  onEditPrompt?: () => void;
+  onExportHtml?: () => void;
+  onRegenerate?: () => void;
   productPack?: ProductPack;
 }) {
   const [briefGenerated, setBriefGenerated] = useState(false);
@@ -234,6 +244,7 @@ export function StudioPrototypePreview({
       <div className="flex items-center gap-2 overflow-x-auto border-t border-neutral-200 bg-white p-4 sm:justify-end">
         <button
           className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          onClick={onRegenerate}
           type="button"
         >
           <RefreshCw className="h-4 w-4" />
@@ -241,18 +252,39 @@ export function StudioPrototypePreview({
         </button>
         <button
           className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          onClick={onEditPrompt}
           type="button"
         >
           <PanelTop className="h-4 w-4" />
           编辑提示词
         </button>
-        <button
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black"
-          type="button"
-        >
-          <Code2 className="h-4 w-4" />
-          导出 HTML
-        </button>
+        {onExportHtml ? (
+          <button
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-neutral-400"
+            disabled={isExporting}
+            onClick={onExportHtml}
+            type="button"
+          >
+            <Code2 className="h-4 w-4" />
+            {isExporting ? "导出中" : "导出 HTML"}
+          </button>
+        ) : exportHref ? (
+          <a
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black"
+            href={exportHref}
+          >
+            <Code2 className="h-4 w-4" />
+            导出 HTML
+          </a>
+        ) : (
+          <button
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black"
+            type="button"
+          >
+            <Code2 className="h-4 w-4" />
+            导出 HTML
+          </button>
+        )}
       </div>
     </div>
   );

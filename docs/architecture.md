@@ -16,7 +16,7 @@ PM Agent Studio combines two reference systems into one PM-focused AI workspace:
 | Product Pack data | `lib/product-pack.ts` | typed FinSight demo pack shared by API and workspace UI |
 | Harness contract | `lib/agent-harness.ts` | providers, capabilities, workflows, events, generated artifacts, Product Pack output |
 | API surface | `app/api/harness/route.ts`, `app/api/generate/route.ts`, `app/api/export/route.ts` | provider detection, workflow discovery, deterministic mock generation, and artifact export |
-| Studio UI | `app/app`, `components/studio/*` | OpenDesign-inspired workspace, Product Pack summary, artifact canvas, Product Pack-driven tabs, workflow sidebar, harness event timeline, export links, and run input |
+| Studio UI | `app/app`, `components/studio/*` | OpenDesign-inspired workspace, Product Pack summary, artifact canvas, Product Pack-driven tabs, local edit mode, workflow sidebar, harness event timeline, export buttons, and run input |
 
 ## MVP Runtime
 
@@ -27,6 +27,7 @@ The current MVP is deterministic:
 3. `/api/export` accepts an artifact id and format, then returns deterministic Markdown, JSON, HTML, or placeholder PDF/PPTX metadata.
 4. `/app` renders the current FinSight demo workspace using the typed Product Pack and existing visual design baseline.
 5. The workspace can call `/api/generate` from the bottom run input and can download supported artifact exports through `/api/export`.
+6. The workspace stores the last Product Pack and agent events in browser-local storage, then posts the current Product Pack for edited artifact exports.
 
 No real AI provider, subprocess manager, authentication, database, payment, or external OpenDesign API is required for the 2026-06-21 sprint.
 
@@ -34,4 +35,4 @@ No real AI provider, subprocess manager, authentication, database, payment, or e
 
 1. Replace PDF/PPTX placeholders with binary renderers after the judging demo flow is stable.
 2. Add a real Codex run adapter behind the detected Codex provider.
-3. Persist generated runs so refreshed pages can restore user-created Product Packs.
+3. Add simple run history and server-side persistence after the browser-local MVP is accepted.

@@ -47,3 +47,9 @@ Reason: PM Studio needs to move quickly without blending two source projects int
 Decision: define the FinSight demo output as a typed Product Pack in `lib/product-pack.ts`, then return it from `/api/generate` and pass it into the `/app` workspace.
 
 Reason: this keeps API output, UI summary, PRD, prototype, research, competitor, persona, roadmap, and export metadata aligned. It also makes the mock provider replaceable by Codex or Claude Code later without changing the workspace component contract.
+
+## 2026-06-17: Use Browser-Local Product Pack Persistence For The MVP
+
+Decision: store the last generated Product Pack and harness events in browser-local storage, and POST the current Product Pack to `/api/export` for downloads.
+
+Reason: the competition demo needs refresh recovery and editable exports, but adding a database or server-side project model would slow down the sprint. Browser-local persistence keeps the OpenDesign-style edit/preview loop demonstrable while preserving a clear path to server persistence later.

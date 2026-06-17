@@ -2,7 +2,11 @@ import {
   createProductPackExport,
   type ExportFormat,
 } from "@/lib/product-pack-export";
-import { buildFinSightProductPack, defaultFinSightIdea } from "@/lib/product-pack";
+import {
+  buildFinSightProductPack,
+  defaultFinSightIdea,
+  type ProductPack,
+} from "@/lib/product-pack";
 
 const exportFormats = new Set<ExportFormat>(["html", "json", "markdown", "pdf", "pptx"]);
 
@@ -10,20 +14,38 @@ function isExportFormat(value: string): value is ExportFormat {
   return exportFormats.has(value as ExportFormat);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isProductPack(value: unknown): value is ProductPack {
+  return (
+    isRecord(value) &&
+    value.schemaVersion === "pm-product-pack.v1" &&
+    typeof value.sourceIdea === "string" &&
+    isRecord(value.project) &&
+    isRecord(value.prd) &&
+    isRecord(value.prototype) &&
+    Array.isArray(value.artifactIndex)
+  );
+}
+
 function buildExportResponse({
   artifactId,
   format,
   input,
+  productPack,
 }: {
   artifactId: string;
   format: ExportFormat;
   input?: string;
+  productPack?: ProductPack;
 }) {
-  const productPack = buildFinSightProductPack(input || defaultFinSightIdea);
+  const pack = productPack ?? buildFinSightProductPack(input || defaultFinSightIdea);
   const exported = createProductPackExport({
     artifactId,
     format,
-    productPack,
+    productPack: pack,
   });
 
   return new Response(exported.body, {
@@ -59,6 +81,7 @@ export async function POST(request: Request) {
     artifact?: string;
     format?: string;
     input?: string;
+    productPack?: unknown;
   } | null;
 
   const artifactId = body?.artifact || "product-pack";
@@ -73,6 +96,7 @@ export async function POST(request: Request) {
       artifactId,
       format,
       input: body?.input?.trim() || undefined,
+      productPack: isProductPack(body?.productPack) ? body.productPack : undefined,
     });
   } catch (error) {
     return Response.json(

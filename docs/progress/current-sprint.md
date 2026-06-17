@@ -30,16 +30,19 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - `/api/export` now provides deterministic Markdown, JSON, HTML, and placeholder PDF/PPTX artifact exports.
 - Workspace artifact action buttons now link to `/api/export`.
 - Bottom run input now calls `/api/generate` and updates Product Pack plus Agent events in the workspace.
+- Workspace now restores the last generated Product Pack and agent events from browser-local storage.
+- Edit mode now updates PRD fields, prototype flow, OpenDesign prompt, screen goals, summary bullets, and next actions directly in the current Product Pack.
+- Export buttons now POST the current Product Pack to `/api/export`, so locally edited artifacts can be downloaded.
 
 ## In Progress
 
-- Preparing real Codex run adapter and binary export replacement for a later MVP slice.
+- Preparing real Codex run adapter, simple run history, and binary export replacement for a later MVP slice.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred
 
 - Real Codex/Claude Code subprocess spawning if it threatens the demo timeline.
-- Persistent project storage.
+- Server-side persistent project storage.
 - Authentication and workspace sharing.
 - Automated tests beyond lint/build.
 - Production deployment setup.

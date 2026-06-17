@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUp,
@@ -15,6 +15,8 @@ import {
   MousePointer2,
   Pencil,
   Presentation,
+  RotateCcw,
+  Save,
   Send,
   Share2,
   Sparkles,
@@ -168,7 +170,301 @@ function RoadmapPreview({ productPack }: { productPack?: ProductPack }) {
   );
 }
 
+const localProductPackStorageKey = "pmstudio:last-product-pack:v1";
+const localEventsStorageKey = "pmstudio:last-agent-events:v1";
+
+type ExportFormat = ProductPack["artifactIndex"][number]["exportFormats"][number];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isProductPack(value: unknown): value is ProductPack {
+  return (
+    isRecord(value) &&
+    value.schemaVersion === "pm-product-pack.v1" &&
+    typeof value.sourceIdea === "string" &&
+    isRecord(value.project) &&
+    isRecord(value.prd) &&
+    isRecord(value.prototype)
+  );
+}
+
+function isHarnessEventList(value: unknown): value is HarnessEvent[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.type === "string" &&
+        typeof item.agent === "string" &&
+        typeof item.message === "string",
+    )
+  );
+}
+
+function listToEditableValue(items: string[]) {
+  return items.join("\n");
+}
+
+function editableValueToList(value: string) {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function EditableListField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-neutral-500">{label}</span>
+      <textarea
+        className="mt-2 min-h-28 w-full resize-y rounded-xl border border-black/10 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/35"
+        onChange={(event) => onChange(editableValueToList(event.target.value))}
+        value={listToEditableValue(value)}
+      />
+    </label>
+  );
+}
+
+function ArtifactEditPanel({
+  activeTab,
+  productPack,
+  onChange,
+  onReset,
+}: {
+  activeTab: (typeof studioTabs)[number];
+  productPack: ProductPack;
+  onChange: (productPack: ProductPack) => void;
+  onReset: () => void;
+}) {
+  function update(updater: (productPack: ProductPack) => ProductPack) {
+    onChange(updater(productPack));
+  }
+
+  return (
+    <div className="mb-5 rounded-2xl border border-black/10 bg-neutral-50 p-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-neutral-950">本地编辑模式</p>
+          <p className="mt-1 text-xs leading-5 text-neutral-500">
+            修改会立即更新当前画布、预览和导出链接，并自动保存到本机浏览器。
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <span className="inline-flex h-8 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700">
+            <Save className="h-3.5 w-3.5" />
+            自动保存
+          </span>
+          <button
+            className="inline-flex h-8 items-center gap-2 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100"
+            onClick={onReset}
+            type="button"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            恢复默认
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "PRD" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <label className="block lg:col-span-2">
+            <span className="text-xs font-semibold text-neutral-500">PRD 目标</span>
+            <textarea
+              className="mt-2 min-h-20 w-full resize-y rounded-xl border border-black/10 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/35"
+              onChange={(event) =>
+                update((pack) => ({
+                  ...pack,
+                  prd: {
+                    ...pack.prd,
+                    objective: event.target.value,
+                  },
+                }))
+              }
+              value={productPack.prd.objective}
+            />
+          </label>
+          <EditableListField
+            label="核心功能，一行一个"
+            onChange={(coreFeatures) =>
+              update((pack) => ({
+                ...pack,
+                prd: {
+                  ...pack.prd,
+                  coreFeatures,
+                },
+              }))
+            }
+            value={productPack.prd.coreFeatures}
+          />
+          <EditableListField
+            label="MVP 范围，一行一个"
+            onChange={(mvpScope) =>
+              update((pack) => ({
+                ...pack,
+                prd: {
+                  ...pack.prd,
+                  mvpScope,
+                },
+              }))
+            }
+            value={productPack.prd.mvpScope}
+          />
+        </div>
+      ) : null}
+
+      {activeTab === "原型" ? (
+        <div className="space-y-4">
+          <label className="block">
+            <span className="text-xs font-semibold text-neutral-500">用户流程</span>
+            <textarea
+              className="mt-2 min-h-20 w-full resize-y rounded-xl border border-black/10 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/35"
+              onChange={(event) =>
+                update((pack) => ({
+                  ...pack,
+                  prototype: {
+                    ...pack.prototype,
+                    userFlow: event.target.value,
+                  },
+                }))
+              }
+              value={productPack.prototype.userFlow}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold text-neutral-500">OpenDesign 原型提示词</span>
+            <textarea
+              className="mt-2 min-h-24 w-full resize-y rounded-xl border border-black/10 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/35"
+              onChange={(event) =>
+                update((pack) => ({
+                  ...pack,
+                  prototype: {
+                    ...pack.prototype,
+                    openDesignPrompt: event.target.value,
+                  },
+                }))
+              }
+              value={productPack.prototype.openDesignPrompt}
+            />
+          </label>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {productPack.prototype.screens.map((screen, index) => (
+              <div className="rounded-xl border border-black/10 bg-white p-3" key={screen.name}>
+                <p className="text-xs font-semibold text-neutral-500">{screen.name}</p>
+                <label className="mt-3 block">
+                  <span className="text-[11px] font-medium text-neutral-400">页面目标</span>
+                  <textarea
+                    className="mt-1 min-h-20 w-full resize-y rounded-lg border border-black/10 bg-neutral-50 px-3 py-2 text-sm leading-6 text-neutral-800 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/35"
+                    onChange={(event) =>
+                      update((pack) => ({
+                        ...pack,
+                        prototype: {
+                          ...pack.prototype,
+                          screens: pack.prototype.screens.map((item, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...item,
+                                  goal: event.target.value,
+                                }
+                              : item,
+                          ),
+                        },
+                      }))
+                    }
+                    value={screen.goal}
+                  />
+                </label>
+                <label className="mt-3 block">
+                  <span className="text-[11px] font-medium text-neutral-400">主操作</span>
+                  <input
+                    className="mt-1 h-9 w-full rounded-lg border border-black/10 bg-neutral-50 px-3 text-sm text-neutral-800 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/35"
+                    onChange={(event) =>
+                      update((pack) => ({
+                        ...pack,
+                        prototype: {
+                          ...pack.prototype,
+                          screens: pack.prototype.screens.map((item, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...item,
+                                  primaryAction: event.target.value,
+                                }
+                              : item,
+                          ),
+                        },
+                      }))
+                    }
+                    value={screen.primaryAction}
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab !== "PRD" && activeTab !== "原型" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <label className="block lg:col-span-2">
+            <span className="text-xs font-semibold text-neutral-500">产品定位</span>
+            <textarea
+              className="mt-2 min-h-20 w-full resize-y rounded-xl border border-black/10 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/35"
+              onChange={(event) =>
+                update((pack) => ({
+                  ...pack,
+                  project: {
+                    ...pack.project,
+                    positioning: event.target.value,
+                  },
+                }))
+              }
+              value={productPack.project.positioning}
+            />
+          </label>
+          <EditableListField
+            label="项目摘要要点，一行一个"
+            onChange={(bullets) =>
+              update((pack) => ({
+                ...pack,
+                summary: {
+                  ...pack.summary,
+                  bullets,
+                },
+              }))
+            }
+            value={productPack.summary.bullets}
+          />
+          <EditableListField
+            label="下一步动作，一行一个"
+            onChange={(nextActions) =>
+              update((pack) => ({
+                ...pack,
+                summary: {
+                  ...pack.summary,
+                  nextActions,
+                },
+              }))
+            }
+            value={productPack.summary.nextActions}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type ArtifactAction = {
+  artifactId?: string;
+  format?: ExportFormat;
   href?: string;
   label: string;
 };
@@ -186,10 +482,18 @@ function ActionIcon({ action }: { action: ArtifactAction }) {
 function ArtifactView({
   activeTab,
   activeViewport,
+  isPrototypeExporting,
+  onEditPrototypePrompt,
+  onExportPrototypeHtml,
+  onRequestGenerate,
   productPack,
 }: {
   activeTab: (typeof studioTabs)[number];
   activeViewport?: string;
+  isPrototypeExporting?: boolean;
+  onEditPrototypePrompt?: () => void;
+  onExportPrototypeHtml?: () => void;
+  onRequestGenerate?: () => void;
   productPack?: ProductPack;
 }) {
   if (activeTab === "PRD") {
@@ -199,7 +503,14 @@ function ArtifactView({
   if (activeTab === "原型") {
     return (
       <div className="space-y-5">
-        <StudioPrototypePreview activeViewport={activeViewport} productPack={productPack} />
+        <StudioPrototypePreview
+          activeViewport={activeViewport}
+          isExporting={isPrototypeExporting}
+          onEditPrompt={onEditPrototypePrompt}
+          onExportHtml={onExportPrototypeHtml}
+          onRegenerate={onRequestGenerate}
+          productPack={productPack}
+        />
         <PrdPrototypeMap productPack={productPack} />
       </div>
     );
@@ -263,8 +574,8 @@ function getArtifactHref(tab: (typeof studioTabs)[number], activeViewport?: stri
   return `/app?artifact=${artifact}`;
 }
 
-function getExportActionLabel(format: ProductPack["artifactIndex"][number]["exportFormats"][number]) {
-  const labels: Record<ProductPack["artifactIndex"][number]["exportFormats"][number], string> = {
+function getExportActionLabel(format: ExportFormat) {
+  const labels: Record<ExportFormat, string> = {
     html: "导出 HTML",
     json: "导出 JSON",
     markdown: "导出 Markdown",
@@ -275,34 +586,18 @@ function getExportActionLabel(format: ProductPack["artifactIndex"][number]["expo
   return labels[format];
 }
 
-function getExportHref({
-  artifactId,
-  format,
-  productPack,
-}: {
-  artifactId: string;
-  format: ProductPack["artifactIndex"][number]["exportFormats"][number];
-  productPack: ProductPack;
-}) {
-  const params = new URLSearchParams({
-    artifact: artifactId,
-    format,
-    input: productPack.sourceIdea,
-  });
-
-  return `/api/export?${params.toString()}`;
-}
-
 function getArtifactActions(tab: (typeof studioTabs)[number], productPack: ProductPack): ArtifactAction[] {
   const artifactId = artifactIndexIdByTab[tab];
   const artifact = productPack.artifactIndex.find((item) => item.id === artifactId);
   const exportActions =
     artifact?.exportFormats.map((format) => ({
-      href: getExportHref({ artifactId, format, productPack }),
+      artifactId,
+      format,
       label: getExportActionLabel(format),
     })) ?? [
       {
-        href: getExportHref({ artifactId, format: "markdown", productPack }),
+        artifactId,
+        format: "markdown" as const,
         label: "导出 Markdown",
       },
     ];
@@ -335,10 +630,120 @@ export function ArtifactCanvas({
     productPack ?? buildFinSightProductPack(defaultFinSightIdea),
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportingAction, setExportingAction] = useState<string | null>(null);
   const [prompt, setPrompt] = useState(currentPack.sourceIdea);
   const [runError, setRunError] = useState<string | null>(null);
   const projectTitle = currentPack.project.title;
   const artifactActions = getArtifactActions(activeTab, currentPack);
+
+  useEffect(() => {
+    let storedPack: ProductPack | null = null;
+    let storedEvents: HarnessEvent[] | null = null;
+
+    try {
+      const storedPackValue = window.localStorage.getItem(localProductPackStorageKey);
+      const storedEventsValue = window.localStorage.getItem(localEventsStorageKey);
+
+      if (storedPackValue) {
+        const parsedPack: unknown = JSON.parse(storedPackValue);
+
+        if (isProductPack(parsedPack)) {
+          storedPack = parsedPack;
+        }
+      }
+
+      if (storedEventsValue) {
+        const parsedEvents: unknown = JSON.parse(storedEventsValue);
+
+        if (isHarnessEventList(parsedEvents)) {
+          storedEvents = parsedEvents;
+        }
+      }
+    } catch {
+      window.localStorage.removeItem(localProductPackStorageKey);
+      window.localStorage.removeItem(localEventsStorageKey);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (storedPack) {
+        setCurrentPack(storedPack);
+        setPrompt(storedPack.sourceIdea);
+      }
+
+      if (storedEvents) {
+        setCurrentEvents(storedEvents);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(localProductPackStorageKey, JSON.stringify(currentPack));
+  }, [currentPack]);
+
+  useEffect(() => {
+    if (currentEvents?.length) {
+      window.localStorage.setItem(localEventsStorageKey, JSON.stringify(currentEvents));
+    }
+  }, [currentEvents]);
+
+  function handleResetToDefault() {
+    const nextPack = buildFinSightProductPack(defaultFinSightIdea);
+
+    window.localStorage.removeItem(localProductPackStorageKey);
+    window.localStorage.removeItem(localEventsStorageKey);
+    setCurrentPack(nextPack);
+    setCurrentEvents(agentEvents);
+    setPrompt(nextPack.sourceIdea);
+    setActiveMode("预览");
+  }
+
+  async function handleExportAction(action: ArtifactAction) {
+    if (!action.artifactId || !action.format) return;
+
+    const actionKey = `${action.artifactId}:${action.format}`;
+    setExportingAction(actionKey);
+    setRunError(null);
+
+    try {
+      const response = await fetch("/api/export", {
+        body: JSON.stringify({
+          artifact: action.artifactId,
+          format: action.format,
+          productPack: currentPack,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(error?.error ?? "Export failed");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition");
+      const filename =
+        disposition?.match(/filename="([^"]+)"/)?.[1] ??
+        `${currentPack.id}-${action.artifactId}.${action.format === "markdown" ? "md" : action.format}`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : "导出失败");
+    } finally {
+      setExportingAction(null);
+    }
+  }
 
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -475,9 +880,27 @@ export function ArtifactCanvas({
                 </div>
               </div>
               <div key={activeTab} className="min-w-0 bg-white/72 p-3 sm:p-6">
+                {activeMode === "修改" ? (
+                  <ArtifactEditPanel
+                    activeTab={activeTab}
+                    onChange={setCurrentPack}
+                    onReset={handleResetToDefault}
+                    productPack={currentPack}
+                  />
+                ) : null}
                 <ArtifactView
                   activeTab={activeTab}
                   activeViewport={activeViewport}
+                  isPrototypeExporting={exportingAction === "prototype:html"}
+                  onEditPrototypePrompt={() => setActiveMode("修改")}
+                  onExportPrototypeHtml={() =>
+                    handleExportAction({
+                      artifactId: "prototype",
+                      format: "html",
+                      label: "导出 HTML",
+                    })
+                  }
+                  onRequestGenerate={() => setActiveMode("生成")}
                   productPack={currentPack}
                 />
               </div>
@@ -505,11 +928,13 @@ export function ArtifactCanvas({
                         ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
                         : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
                     )}
+                    disabled={exportingAction === `${action.artifactId}:${action.format}`}
                     key={action.label}
+                    onClick={() => handleExportAction(action)}
                     type="button"
                   >
                     <ActionIcon action={action} />
-                    {action.label}
+                    {exportingAction === `${action.artifactId}:${action.format}` ? "导出中" : action.label}
                   </button>
                 )
               ))}
