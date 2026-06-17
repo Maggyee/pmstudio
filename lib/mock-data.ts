@@ -330,6 +330,7 @@ export const studioTabs = [
   "竞品",
   "画像",
   "路线图",
+  "总结",
 ] as const;
 
 export const artifactActions = [

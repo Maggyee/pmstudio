@@ -28,6 +28,7 @@ import { PrdPreview } from "@/components/studio/prd-preview";
 import { PrdPrototypeMap } from "@/components/prd-prototype-map";
 import { ResearchPreview } from "@/components/studio/research-preview";
 import { StudioPrototypePreview } from "@/components/studio/prototype-preview";
+import { SummaryPreview } from "@/components/studio/summary-preview";
 import {
   studioTabs,
 } from "@/lib/mock-data";
@@ -553,7 +554,11 @@ function ArtifactView({
     return <PersonasPreview productPack={productPack} />;
   }
 
-  return <RoadmapPreview productPack={productPack} />;
+  if (activeTab === "路线图") {
+    return <RoadmapPreview productPack={productPack} />;
+  }
+
+  return <SummaryPreview productPack={productPack} />;
 }
 
 const artifactParamByTab: Record<(typeof studioTabs)[number], string> = {
@@ -563,6 +568,7 @@ const artifactParamByTab: Record<(typeof studioTabs)[number], string> = {
   竞品: "competitors",
   画像: "personas",
   路线图: "roadmap",
+  总结: "summary",
 };
 
 const artifactIndexIdByTab: Record<(typeof studioTabs)[number], string> = {
@@ -572,6 +578,7 @@ const artifactIndexIdByTab: Record<(typeof studioTabs)[number], string> = {
   竞品: "competitors",
   画像: "personas",
   路线图: "roadmap",
+  总结: "executive-summary",
 };
 
 const tabByArtifactParam: Record<string, (typeof studioTabs)[number]> = {
@@ -581,6 +588,8 @@ const tabByArtifactParam: Record<string, (typeof studioTabs)[number]> = {
   competitors: "竞品",
   personas: "画像",
   roadmap: "路线图",
+  summary: "总结",
+  "executive-summary": "总结",
 };
 
 function getTabFromArtifactParam(artifact?: string) {

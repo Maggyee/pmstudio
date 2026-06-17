@@ -17,7 +17,7 @@ PM Agent Studio combines two reference systems into one PM-focused AI workspace:
 | Harness contract | `lib/agent-harness.ts` | providers, capabilities, workflows, events, generated artifacts, Product Pack output |
 | Agent runner | `lib/agent-runner.ts` | provider-selected run boundary, prompt composition, Codex dry-run / optional CLI metadata |
 | API surface | `app/api/harness/route.ts`, `app/api/generate/route.ts`, `app/api/export/route.ts` | provider detection, workflow discovery, provider-selected generation, and artifact export |
-| Studio UI | `app/app`, `components/studio/*` | OpenDesign-inspired workspace, Product Pack summary, artifact canvas, Product Pack-driven tabs, local edit mode, workflow sidebar, provider selector, harness event timeline, export buttons, and run input |
+| Studio UI | `app/app`, `components/studio/*` | OpenDesign-inspired workspace, Product Pack summary, artifact canvas, Product Pack-driven tabs including executive summary, local edit mode, workflow sidebar, provider selector, harness event timeline, export buttons, and run input |
 
 ## MVP Runtime
 
