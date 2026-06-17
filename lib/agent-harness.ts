@@ -70,6 +70,16 @@ export type AdapterRunMetadata = {
   outputPreview?: string;
 };
 
+export type AgentRunHistoryItem = {
+  runId: string;
+  providerId: AgentProviderId;
+  runMode: AgentRunMode;
+  workflowId: WorkflowId;
+  projectTitle: string;
+  sourceIdea: string;
+  createdAt: string;
+};
+
 export type GeneratedPack = {
   workflowId: WorkflowId;
   input: string;

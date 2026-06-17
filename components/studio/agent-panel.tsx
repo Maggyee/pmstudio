@@ -2,12 +2,13 @@ import {
   ArrowUp,
   Check,
   CircleDashed,
+  Clock3,
   Loader2,
   MessageSquareText,
   Paperclip,
 } from "lucide-react";
 
-import type { HarnessEvent } from "@/lib/agent-harness";
+import type { AgentRunHistoryItem, HarnessEvent } from "@/lib/agent-harness";
 import {
   buildFinSightProductPack,
   defaultFinSightIdea,
@@ -47,13 +48,38 @@ function getEventLabel(event: HarnessEvent) {
   return event.agent;
 }
 
+function getRunModeLabel(item: AgentRunHistoryItem) {
+  const labels: Record<AgentRunHistoryItem["runMode"], string> = {
+    "api-fallback-dry-run": "API dry-run",
+    "claude-dry-run": "Claude dry-run",
+    "codex-cli": "Codex CLI",
+    "codex-dry-run": "Codex dry-run",
+    mock: "Mock",
+  };
+
+  return labels[item.runMode];
+}
+
+function formatRunTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "刚刚";
+
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function AgentPanel({
   events = fallbackEvents,
   productPack,
+  runHistory = [],
   variant = "column",
 }: {
   events?: HarnessEvent[];
   productPack?: ProductPack;
+  runHistory?: AgentRunHistoryItem[];
   variant?: "column" | "floating";
 }) {
   const floating = variant === "floating";
@@ -126,6 +152,44 @@ export function AgentPanel({
             );
           })}
         </div>
+      </section>
+
+      <section
+        className={cn(
+          "rounded-[22px] border border-black/10 bg-white p-4 shadow-sm",
+          !floating && "liquid-card",
+        )}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-semibold">最近运行</p>
+          <span className="rounded-full border border-black/10 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-500">
+            {runHistory.length} 条
+          </span>
+        </div>
+        {runHistory.length > 0 ? (
+          <div className="space-y-2">
+            {runHistory.slice(0, floating ? 4 : 6).map((item) => (
+              <div className="rounded-xl border border-black/10 bg-neutral-50 p-3" key={item.runId}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-semibold text-neutral-800">
+                    {getRunModeLabel(item)}
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-neutral-400">
+                    <Clock3 className="h-3 w-3" />
+                    {formatRunTime(item.createdAt)}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">
+                  {item.sourceIdea}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs leading-5 text-neutral-500">
+            运行一次生成后，这里会保留最近的 provider、workflow 和输入想法。
+          </p>
+        )}
       </section>
 
       {!floating ? (

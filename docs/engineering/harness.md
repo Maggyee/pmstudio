@@ -77,6 +77,7 @@ The competition MVP uses browser-local state before introducing persistent proje
 
 - generated Product Packs are saved to `localStorage` under a versioned key;
 - the last harness event list is restored with the pack so the Agent panel remains coherent after refresh;
+- recent generation runs are saved locally with provider, run mode, workflow, input idea, project title, and run id;
 - edit mode updates the typed Product Pack directly, so PRD fields, prototype flow, OpenDesign prompt, screen goals, summaries, and export payloads stay aligned;
 - `/api/export` accepts a full Product Pack in POST requests, allowing edited artifacts to be downloaded without a database.
 

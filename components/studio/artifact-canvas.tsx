@@ -34,6 +34,7 @@ import {
 import type {
   AgentProviderId,
   AgentRunMode,
+  AgentRunHistoryItem,
   GeneratedPack,
   HarnessEvent,
   WorkflowId,
@@ -178,6 +179,7 @@ function RoadmapPreview({ productPack }: { productPack?: ProductPack }) {
 
 const localProductPackStorageKey = "pmstudio:last-product-pack:v1";
 const localEventsStorageKey = "pmstudio:last-agent-events:v1";
+const localRunHistoryStorageKey = "pmstudio:run-history:v1";
 
 type ExportFormat = ProductPack["artifactIndex"][number]["exportFormats"][number];
 
@@ -205,6 +207,23 @@ function isHarnessEventList(value: unknown): value is HarnessEvent[] {
         typeof item.type === "string" &&
         typeof item.agent === "string" &&
         typeof item.message === "string",
+    )
+  );
+}
+
+function isRunHistoryList(value: unknown): value is AgentRunHistoryItem[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.runId === "string" &&
+        typeof item.providerId === "string" &&
+        typeof item.runMode === "string" &&
+        typeof item.workflowId === "string" &&
+        typeof item.projectTitle === "string" &&
+        typeof item.sourceIdea === "string" &&
+        typeof item.createdAt === "string",
     )
   );
 }
@@ -663,6 +682,7 @@ export function ArtifactCanvas({
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportingAction, setExportingAction] = useState<string | null>(null);
   const [lastRunMode, setLastRunMode] = useState<AgentRunMode>("mock");
+  const [runHistory, setRunHistory] = useState<AgentRunHistoryItem[]>([]);
   const [prompt, setPrompt] = useState(currentPack.sourceIdea);
   const [runError, setRunError] = useState<string | null>(null);
   const projectTitle = currentPack.project.title;
@@ -671,10 +691,12 @@ export function ArtifactCanvas({
   useEffect(() => {
     let storedPack: ProductPack | null = null;
     let storedEvents: HarnessEvent[] | null = null;
+    let storedRunHistory: AgentRunHistoryItem[] | null = null;
 
     try {
       const storedPackValue = window.localStorage.getItem(localProductPackStorageKey);
       const storedEventsValue = window.localStorage.getItem(localEventsStorageKey);
+      const storedRunHistoryValue = window.localStorage.getItem(localRunHistoryStorageKey);
 
       if (storedPackValue) {
         const parsedPack: unknown = JSON.parse(storedPackValue);
@@ -691,9 +713,18 @@ export function ArtifactCanvas({
           storedEvents = parsedEvents;
         }
       }
+
+      if (storedRunHistoryValue) {
+        const parsedRunHistory: unknown = JSON.parse(storedRunHistoryValue);
+
+        if (isRunHistoryList(parsedRunHistory)) {
+          storedRunHistory = parsedRunHistory;
+        }
+      }
     } catch {
       window.localStorage.removeItem(localProductPackStorageKey);
       window.localStorage.removeItem(localEventsStorageKey);
+      window.localStorage.removeItem(localRunHistoryStorageKey);
     }
 
     const timeoutId = window.setTimeout(() => {
@@ -704,6 +735,11 @@ export function ArtifactCanvas({
 
       if (storedEvents) {
         setCurrentEvents(storedEvents);
+      }
+
+      if (storedRunHistory) {
+        setRunHistory(storedRunHistory);
+        setLastRunMode(storedRunHistory[0]?.runMode ?? "mock");
       }
     }, 0);
 
@@ -720,13 +756,20 @@ export function ArtifactCanvas({
     }
   }, [currentEvents]);
 
+  useEffect(() => {
+    window.localStorage.setItem(localRunHistoryStorageKey, JSON.stringify(runHistory));
+  }, [runHistory]);
+
   function handleResetToDefault() {
     const nextPack = buildFinSightProductPack(defaultFinSightIdea);
 
     window.localStorage.removeItem(localProductPackStorageKey);
     window.localStorage.removeItem(localEventsStorageKey);
+    window.localStorage.removeItem(localRunHistoryStorageKey);
     setCurrentPack(nextPack);
     setCurrentEvents(agentEvents);
+    setRunHistory([]);
+    setLastRunMode("mock");
     setPrompt(nextPack.sourceIdea);
     setActiveMode("预览");
   }
@@ -806,6 +849,18 @@ export function ArtifactCanvas({
       setCurrentPack(generated.productPack);
       setCurrentEvents(generated.events);
       setLastRunMode(generated.runMode ?? "mock");
+      setRunHistory((history) => [
+        {
+          createdAt: new Date().toISOString(),
+          projectTitle: generated.productPack.project.title,
+          providerId: generated.providerId ?? providerId,
+          runId: generated.runId ?? `run-${Date.now()}`,
+          runMode: generated.runMode ?? "mock",
+          sourceIdea: generated.input,
+          workflowId: generated.workflowId,
+        },
+        ...history,
+      ].slice(0, 8));
       setPrompt(generated.input);
       setActiveMode("预览");
     } catch (error) {
@@ -895,7 +950,12 @@ export function ArtifactCanvas({
 
         <div className="pointer-events-none absolute right-4 top-36 z-30 hidden w-[290px] lg:block 2xl:right-8 2xl:w-[310px]">
           <div className="pointer-events-none">
-            <AgentPanel events={currentEvents} productPack={currentPack} variant="floating" />
+            <AgentPanel
+              events={currentEvents}
+              productPack={currentPack}
+              runHistory={runHistory}
+              variant="floating"
+            />
           </div>
         </div>
 
