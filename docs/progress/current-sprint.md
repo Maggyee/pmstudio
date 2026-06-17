@@ -28,10 +28,12 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Artifact action buttons now derive export options from each Product Pack artifact.
 - `/api/harness` now detects local Codex and Claude Code CLI availability.
 - `/api/export` now provides deterministic Markdown, JSON, HTML, and placeholder PDF/PPTX artifact exports.
+- Workspace artifact action buttons now link to `/api/export`.
+- Bottom run input now calls `/api/generate` and updates Product Pack plus Agent events in the workspace.
 
 ## In Progress
 
-- Preparing workspace buttons to call `/api/export` and a run panel to call `/api/generate`.
+- Preparing real Codex run adapter and binary export replacement for a later MVP slice.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

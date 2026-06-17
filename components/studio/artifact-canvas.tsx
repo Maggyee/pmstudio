@@ -9,6 +9,7 @@ import {
   FileCode2,
   FileText,
   Layers3,
+  Loader2,
   MessageSquareText,
   MoreHorizontal,
   MousePointer2,
@@ -28,7 +29,7 @@ import { StudioPrototypePreview } from "@/components/studio/prototype-preview";
 import {
   studioTabs,
 } from "@/lib/mock-data";
-import type { HarnessEvent } from "@/lib/agent-harness";
+import type { GeneratedPack, HarnessEvent, WorkflowId } from "@/lib/agent-harness";
 import {
   buildFinSightProductPack,
   defaultFinSightIdea,
@@ -167,13 +168,18 @@ function RoadmapPreview({ productPack }: { productPack?: ProductPack }) {
   );
 }
 
-function ActionIcon({ action }: { action: string }) {
-  if (action.includes("Markdown")) return <FileText className="h-4 w-4" />;
-  if (action.includes("PDF")) return <Download className="h-4 w-4" />;
-  if (action.includes("HTML")) return <FileCode2 className="h-4 w-4" />;
-  if (action.includes("JSON")) return <FileCode2 className="h-4 w-4" />;
-  if (action.includes("PPTX")) return <Presentation className="h-4 w-4" />;
-  if (action.includes("Codex")) return <Send className="h-4 w-4" />;
+type ArtifactAction = {
+  href?: string;
+  label: string;
+};
+
+function ActionIcon({ action }: { action: ArtifactAction }) {
+  if (action.label.includes("Markdown")) return <FileText className="h-4 w-4" />;
+  if (action.label.includes("PDF")) return <Download className="h-4 w-4" />;
+  if (action.label.includes("HTML")) return <FileCode2 className="h-4 w-4" />;
+  if (action.label.includes("JSON")) return <FileCode2 className="h-4 w-4" />;
+  if (action.label.includes("PPTX")) return <Presentation className="h-4 w-4" />;
+  if (action.label.includes("Codex")) return <Send className="h-4 w-4" />;
   return <Share2 className="h-4 w-4" />;
 }
 
@@ -269,13 +275,46 @@ function getExportActionLabel(format: ProductPack["artifactIndex"][number]["expo
   return labels[format];
 }
 
-function getArtifactActions(tab: (typeof studioTabs)[number], productPack: ProductPack) {
+function getExportHref({
+  artifactId,
+  format,
+  productPack,
+}: {
+  artifactId: string;
+  format: ProductPack["artifactIndex"][number]["exportFormats"][number];
+  productPack: ProductPack;
+}) {
+  const params = new URLSearchParams({
+    artifact: artifactId,
+    format,
+    input: productPack.sourceIdea,
+  });
+
+  return `/api/export?${params.toString()}`;
+}
+
+function getArtifactActions(tab: (typeof studioTabs)[number], productPack: ProductPack): ArtifactAction[] {
   const artifactId = artifactIndexIdByTab[tab];
   const artifact = productPack.artifactIndex.find((item) => item.id === artifactId);
-  const exportActions = artifact?.exportFormats.map(getExportActionLabel) ?? ["导出 Markdown"];
-  const openAction = tab === "原型" ? "在 Open Design 打开" : "发送到 Codex";
+  const exportActions =
+    artifact?.exportFormats.map((format) => ({
+      href: getExportHref({ artifactId, format, productPack }),
+      label: getExportActionLabel(format),
+    })) ?? [
+      {
+        href: getExportHref({ artifactId, format: "markdown", productPack }),
+        label: "导出 Markdown",
+      },
+    ];
+  const openAction = { label: tab === "原型" ? "在 Open Design 打开" : "发送到 Codex" };
 
   return [...exportActions, openAction];
+}
+
+function getWorkflowIdForTab(tab: (typeof studioTabs)[number]): WorkflowId {
+  if (tab === "原型") return "prd-to-prototype-linker";
+
+  return "idea-to-product-pack";
 }
 
 export function ArtifactCanvas({
@@ -291,9 +330,51 @@ export function ArtifactCanvas({
 }) {
   const activeTab = getTabFromArtifactParam(activeArtifact);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "预览">("生成");
-  const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
-  const projectTitle = pack.project.title;
-  const artifactActions = getArtifactActions(activeTab, pack);
+  const [currentEvents, setCurrentEvents] = useState(agentEvents);
+  const [currentPack, setCurrentPack] = useState(
+    productPack ?? buildFinSightProductPack(defaultFinSightIdea),
+  );
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [prompt, setPrompt] = useState(currentPack.sourceIdea);
+  const [runError, setRunError] = useState<string | null>(null);
+  const projectTitle = currentPack.project.title;
+  const artifactActions = getArtifactActions(activeTab, currentPack);
+
+  async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const input = prompt.trim() || currentPack.sourceIdea || defaultFinSightIdea;
+    setIsGenerating(true);
+    setRunError(null);
+
+    try {
+      const response = await fetch("/api/generate", {
+        body: JSON.stringify({
+          input,
+          workflowId: getWorkflowIdForTab(activeTab),
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(error?.error ?? "Generation failed");
+      }
+
+      const generated = (await response.json()) as GeneratedPack;
+      setCurrentPack(generated.productPack);
+      setCurrentEvents(generated.events);
+      setPrompt(generated.input);
+      setActiveMode("预览");
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : "生成失败");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
 
   return (
     <section className="min-h-screen bg-[#fbfaf7]/62">
@@ -375,13 +456,13 @@ export function ArtifactCanvas({
 
         <div className="pointer-events-none absolute right-4 top-36 z-30 hidden w-[290px] lg:block 2xl:right-8 2xl:w-[310px]">
           <div className="pointer-events-none">
-            <AgentPanel events={agentEvents} productPack={pack} variant="floating" />
+            <AgentPanel events={currentEvents} productPack={currentPack} variant="floating" />
           </div>
         </div>
 
         <div className="mx-auto max-w-7xl">
           <div className="min-w-0 space-y-6">
-            <ProductPackSummary productPack={pack} />
+            <ProductPackSummary productPack={currentPack} />
 
             <div className="mx-auto min-w-0 max-w-5xl overflow-hidden rounded-[24px] border border-black/10 bg-white/72 shadow-2xl shadow-black/10 backdrop-blur">
               <div className="flex items-center justify-between border-b border-neutral-200 bg-white/78 px-4 py-2 backdrop-blur">
@@ -397,44 +478,69 @@ export function ArtifactCanvas({
                 <ArtifactView
                   activeTab={activeTab}
                   activeViewport={activeViewport}
-                  productPack={pack}
+                  productPack={currentPack}
                 />
               </div>
             </div>
 
             <div className="mx-auto flex max-w-5xl gap-2 overflow-x-auto pb-2">
               {artifactActions.map((action, index) => (
-                <button
-                  className={cn(
-                    "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium shadow-sm transition",
-                    index === artifactActions.length - 1
-                      ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
-                      : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                  )}
-                  key={action}
-                  type="button"
-                >
-                  <ActionIcon action={action} />
-                  {action}
-                </button>
+                action.href ? (
+                  <a
+                    className={cn(
+                      "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium shadow-sm transition",
+                      "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                    )}
+                    href={action.href}
+                    key={action.label}
+                  >
+                    <ActionIcon action={action} />
+                    {action.label}
+                  </a>
+                ) : (
+                  <button
+                    className={cn(
+                      "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium shadow-sm transition",
+                      index === artifactActions.length - 1
+                        ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
+                        : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                    )}
+                    key={action.label}
+                    type="button"
+                  >
+                    <ActionIcon action={action} />
+                    {action.label}
+                  </button>
+                )
               ))}
             </div>
           </div>
         </div>
 
-        <div className="liquid-glass sticky bottom-5 z-30 mx-auto mt-10 max-w-2xl rounded-[22px] p-3">
+        <form
+          className="liquid-glass sticky bottom-5 z-30 mx-auto mt-10 max-w-2xl rounded-[22px] p-3"
+          onSubmit={handleGenerate}
+        >
           <div className="flex items-center gap-3">
             <MessageSquareText className="h-5 w-5 text-neutral-400" />
             <input
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400"
+              disabled={isGenerating}
+              onChange={(event) => setPrompt(event.target.value)}
               placeholder="让 PM Studio 继续细化任意交付物..."
               type="text"
+              value={prompt}
             />
-            <button className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-950 text-white">
-              <ArrowUp className="h-4 w-4" />
+            <button
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-950 text-white disabled:cursor-not-allowed disabled:bg-neutral-400"
+              disabled={isGenerating}
+              type="submit"
+            >
+              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
             </button>
           </div>
-        </div>
+          {runError ? <p className="mt-2 px-8 text-xs text-rose-600">{runError}</p> : null}
+        </form>
       </div>
     </section>
   );

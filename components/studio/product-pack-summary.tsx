@@ -52,6 +52,10 @@ export function ProductPackSummary({ productPack }: { productPack: ProductPack }
           <p className="mt-2 max-w-3xl text-sm leading-7 text-neutral-600">
             {productPack.project.positioning}
           </p>
+          <div className="mt-4 rounded-[18px] border border-black/10 bg-white/62 px-4 py-3 text-sm leading-6 text-neutral-600">
+            <span className="mr-2 font-medium text-neutral-950">输入想法</span>
+            {productPack.sourceIdea}
+          </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-[18px] border border-black/10 bg-white/70 p-4">
