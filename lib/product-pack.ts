@@ -99,6 +99,539 @@ export type ProductPack = {
   artifactIndex: ProductPackArtifactIndexItem[];
 };
 
+const artifactIndexTemplate: ProductPackArtifactIndexItem[] = [
+  {
+    id: "product-pack",
+    title: "完整产品方案包",
+    surface: "product-pack",
+    status: "ready",
+    exportFormats: ["markdown", "json", "pdf"],
+  },
+  {
+    id: "prd",
+    title: "PRD 初稿",
+    surface: "prd",
+    status: "ready",
+    exportFormats: ["markdown", "pdf"],
+  },
+  {
+    id: "prototype",
+    title: "原型页面结构",
+    surface: "prototype",
+    status: "ready",
+    exportFormats: ["html", "json"],
+  },
+  {
+    id: "research",
+    title: "市场机会分析",
+    surface: "research",
+    status: "ready",
+    exportFormats: ["markdown", "pdf"],
+  },
+  {
+    id: "competitors",
+    title: "竞品分析方向",
+    surface: "competitors",
+    status: "ready",
+    exportFormats: ["markdown", "pdf"],
+  },
+  {
+    id: "personas",
+    title: "目标用户画像",
+    surface: "personas",
+    status: "ready",
+    exportFormats: ["markdown"],
+  },
+  {
+    id: "roadmap",
+    title: "MVP 与路线图",
+    surface: "roadmap",
+    status: "ready",
+    exportFormats: ["markdown", "pptx"],
+  },
+  {
+    id: "executive-summary",
+    title: "项目汇报摘要",
+    surface: "summary",
+    status: "ready",
+    exportFormats: ["markdown", "pptx"],
+  },
+];
+
+function cloneArtifactIndex() {
+  return artifactIndexTemplate.map((artifact) => ({
+    ...artifact,
+    exportFormats: [...artifact.exportFormats],
+  }));
+}
+
+function slugify(value: string) {
+  const ascii = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (ascii) return ascii;
+
+  let hash = 0;
+
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+
+  return `idea-${hash.toString(36)}`;
+}
+
+function isFinSightLikeIdea(input: string) {
+  return /finsight|财富|投研|理财|资产配置|金融/i.test(input);
+}
+
+function inferGenericTitle(input: string) {
+  const normalized = input
+    .replace(/^我想(做|开发|创建|打造)?一个?/, "")
+    .replace(/^帮我(做|开发|创建|打造)?一个?/, "")
+    .replace(/[。.!！?？].*$/, "")
+    .trim();
+  const namedMatch = normalized.match(/(?:叫|名为|名字是)\s*([A-Za-z0-9\u4e00-\u9fa5 -]{2,24})/);
+
+  if (namedMatch?.[1]) {
+    return namedMatch[1].trim();
+  }
+
+  const audienceMatch = normalized.match(/(?:面向|给|为)([^，,。.!！?？]{2,24})(?:的|做)/);
+  const productMatch = normalized.match(/AI\s*([^，,。.!！?？]{2,24})(?:，|,|帮助|用于|解决|$)/);
+
+  if (audienceMatch?.[1]) {
+    const audience = audienceMatch[1].trim();
+    const productName = productMatch?.[1]?.replace(/^AI\s*/i, "").trim();
+
+    if (productName && !productName.includes(audience)) {
+      return `${audience} AI ${productName}`;
+    }
+
+    return `${audience} AI 工作台`;
+  }
+
+  if (normalized.length <= 18) return `${normalized || "新产品"} 产品方案`;
+
+  return `${normalized.slice(0, 18)} 产品方案`;
+}
+
+function inferOutcome(input: string) {
+  const match =
+    input.match(/帮助([^。.!！?？]{2,40})/) ??
+    input.match(/用于([^。.!！?？]{2,40})/) ??
+    input.match(/解决([^。.!！?？]{2,40})/);
+
+  return match?.[1]?.trim() || "提高关键业务流程效率并降低人工协作成本";
+}
+
+function inferTargetSegment(input: string, title: string) {
+  const match = input.match(/(?:面向|给|为)([^，,。.!！?？]{2,24})(?:的|做)/);
+
+  if (match?.[1]) return match[1].trim();
+
+  return title.replace(/产品方案$/, "").replace(/ AI .+$/, "").replace(/ AI 工作台$/, "").trim();
+}
+
+type GenericDomainProfile = {
+  label: string;
+  earlySegment: string;
+  channels: string;
+  existingSystems: string;
+  managerRole: string;
+  operatorRole: string;
+  criticalData: string;
+  businessMetric: string;
+};
+
+function inferDomainProfile(input: string, targetSegment: string): GenericDomainProfile {
+  const target = targetSegment || "核心用户";
+
+  if (/餐饮|门店|库存|排班|外卖|店长|老板|零售/.test(input)) {
+    return {
+      label: "门店经营与餐饮零售运营",
+      earlySegment: "1-5 家门店、仍依赖表格和聊天群管理排班/库存的小型经营者",
+      channels: "本地生活服务商、餐饮老板社群、门店 SaaS 生态和案例模板传播",
+      existingSystems: "收银/进销存/外卖平台后台",
+      managerRole: "门店老板",
+      operatorRole: "店长/排班负责人",
+      criticalData: "销售预测、库存余量、员工班次、损耗记录和外卖订单",
+      businessMetric: "缺货率、人力浪费、排班耗时和库存周转",
+    };
+  }
+
+  if (/教育|学校|培训|课程|老师|学生|教务/.test(input)) {
+    return {
+      label: "教育培训运营",
+      earlySegment: "需要提升招生、排课、学员跟进或教学服务效率的中小教育团队",
+      channels: "校长社群、教培服务商、SaaS 模板市场和公开案例复用",
+      existingSystems: "教务系统、CRM、排课表和班级群",
+      managerRole: "校区负责人",
+      operatorRole: "教务/班主任",
+      criticalData: "学员阶段、课程安排、转化记录、续费状态和教师容量",
+      businessMetric: "转化率、续费率、排课冲突率和服务响应时间",
+    };
+  }
+
+  if (/招聘|人力|HR|员工|绩效|候选人|组织/.test(input)) {
+    return {
+      label: "人力资源与组织运营",
+      earlySegment: "招聘、绩效或员工服务流程仍高度依赖人工整理的成长型团队",
+      channels: "HR 社群、创业公司运营社群、招聘服务商和模板分发",
+      existingSystems: "ATS、HRIS、表格和企业 IM",
+      managerRole: "HR 负责人",
+      operatorRole: "HRBP/招聘专员",
+      criticalData: "候选人状态、岗位需求、面试反馈、员工画像和绩效记录",
+      businessMetric: "招聘周期、候选人转化率、员工响应时效和管理成本",
+    };
+  }
+
+  if (/电商|直播|商品|店铺|订单|私域|客服/.test(input)) {
+    return {
+      label: "电商与私域运营",
+      earlySegment: "需要提升选品、订单、客服或私域转化效率的中小电商团队",
+      channels: "电商卖家社群、服务商生态、直播运营社区和案例模板传播",
+      existingSystems: "电商后台、客服系统、CRM 和选品表",
+      managerRole: "电商运营负责人",
+      operatorRole: "运营/客服主管",
+      criticalData: "商品动销、订单、库存、客户咨询、活动节奏和转化漏斗",
+      businessMetric: "转化率、客诉率、库存周转、复购率和运营人效",
+    };
+  }
+
+  if (/销售|CRM|客户|线索|商机|合同|回款/.test(input)) {
+    return {
+      label: "销售与客户增长",
+      earlySegment: "线索跟进、商机判断和客户复盘仍缺少自动化支持的销售团队",
+      channels: "销售管理社群、CRM 服务商生态、B2B 增长案例和行业模板传播",
+      existingSystems: "CRM、表格、企业 IM 和会议纪要",
+      managerRole: "销售负责人",
+      operatorRole: "客户经理/销售代表",
+      criticalData: "线索来源、客户阶段、沟通记录、报价方案和回款风险",
+      businessMetric: "线索转化率、赢单率、跟进时效和回款周期",
+    };
+  }
+
+  if (/物流|仓储|供应链|采购|配送|工厂|生产/.test(input)) {
+    return {
+      label: "供应链与履约运营",
+      earlySegment: "计划、采购、仓储或配送协同仍依赖人工排程的运营团队",
+      channels: "行业服务商、供应链社群、ERP 生态和标杆案例传播",
+      existingSystems: "ERP、WMS、TMS、采购表和供应商群",
+      managerRole: "供应链负责人",
+      operatorRole: "计划/仓储/采购专员",
+      criticalData: "订单预测、库存水位、供应商交期、仓储容量和配送状态",
+      businessMetric: "履约时效、缺货率、库存周转和异常处理时间",
+    };
+  }
+
+  if (/医疗|诊所|医生|患者|药品|健康/.test(input)) {
+    return {
+      label: "医疗健康服务运营",
+      earlySegment: "需要提升患者管理、预约、随访或内部运营效率的小型医疗服务机构",
+      channels: "诊所经营社群、医疗信息化服务商、行业会议和案例模板传播",
+      existingSystems: "HIS/EMR、预约系统、随访表和患者群",
+      managerRole: "诊所/科室负责人",
+      operatorRole: "医生助理/运营人员",
+      criticalData: "预约、病例摘要、随访计划、药品库存和服务反馈",
+      businessMetric: "预约转化、随访完成率、服务等待时间和运营成本",
+    };
+  }
+
+  return {
+    label: `${target}所在业务场景`,
+    earlySegment: `已经有明确高频任务，但仍依赖人工整理、判断和协作的${target}`,
+    channels: "行业社群、垂直服务商、真实案例模板和团队内部口碑传播",
+    existingSystems: "表格、企业 IM、垂直 SaaS 和内部流程系统",
+    managerRole: "业务负责人",
+    operatorRole: "一线执行人员",
+    criticalData: "业务输入、约束条件、历史记录、执行状态和结果指标",
+    businessMetric: "处理时长、采纳率、异常率和人效提升",
+  };
+}
+
+export function buildProductPackFromIdea(input = defaultFinSightIdea): ProductPack {
+  const idea = input.trim() || defaultFinSightIdea;
+
+  if (isFinSightLikeIdea(idea)) {
+    return buildFinSightProductPack(idea);
+  }
+
+  const title = inferGenericTitle(idea);
+  const slug = slugify(title);
+  const targetSegment = inferTargetSegment(idea, title);
+  const targetLabel = targetSegment || "目标用户";
+  const outcome = inferOutcome(idea);
+  const productConcept = title.replace(/产品方案$/, "");
+  const domain = inferDomainProfile(idea, targetLabel);
+
+  return {
+    schemaVersion: "pm-product-pack.v1",
+    id: `${slug}-product-pack`,
+    sourceIdea: idea,
+    generatedAt: new Date().toISOString(),
+    project: {
+      title,
+      oneLiner: `面向${targetSegment || "目标用户"}的 AI 工作台，帮助${outcome}。`,
+      positioning:
+        `${title} 聚焦“${idea}”这一场景，把数据录入、AI 分析、行动建议、执行跟进和复盘导出组织成一个可落地的工作流。`,
+      targetUsers: [targetSegment || "核心业务用户", "一线执行人员", "业务负责人", "运营管理人员"],
+      painPoints: [
+        `当前${targetSegment || "目标用户"}需要在多个工具之间切换，信息录入、判断和执行割裂。`,
+        `关键决策依赖经验和手工整理，难以及时实现“${outcome}”。`,
+        "执行结果缺少持续追踪和复盘，团队很难判断建议是否真正有效。",
+      ],
+      valueProposition:
+        `用 AI 把${productConcept}场景中的数据、判断、建议和跟进动作串起来，让用户更快完成高频决策。`,
+    },
+    prd: {
+      objective: `让${targetSegment || "目标用户"}在 5 分钟内完成关键数据录入、获得 AI 建议，并形成可执行的下一步计划。`,
+      sections: [
+        {
+          label: "目标用户",
+          value: `${targetSegment || "目标用户"}，以及需要围绕该场景进行运营、协作和管理的团队。`,
+        },
+        {
+          label: "核心价值",
+          value: `把分散信息转成 AI 分析和行动建议，帮助用户${outcome}。`,
+        },
+        {
+          label: "MVP 范围",
+          value: "业务数据录入、AI 分析建议、任务计划、异常提醒、执行看板和复盘导出。",
+        },
+      ],
+      coreFeatures: [
+        `${targetSegment || "目标用户"}关键数据录入与画像`,
+        `围绕“${outcome}”的 AI 分析和优先级判断`,
+        "行动建议、计划排程和替代方案生成",
+        "异常提醒、风险提示和执行状态追踪",
+        "关键指标看板和效果复盘",
+        "团队协作、记录归档和材料导出",
+      ],
+      userStories: [
+        `作为${targetSegment || "核心用户"}，我想快速录入关键业务信息，以便系统给出可执行建议。`,
+        "作为运营负责人，我想看到异常、优先级和任务计划，以便及时调整资源。",
+        "作为管理者，我想查看执行结果和复盘摘要，以便判断方案是否带来实际收益。",
+      ],
+      assumptions: [
+        "用户愿意把关键业务数据录入到一个统一工作台。",
+        "AI 建议需要可解释、可编辑，并保留人工确认环节。",
+        "只要能减少重复判断和手工协调，用户就愿意在高频场景中持续使用。",
+      ],
+      successMetrics: [
+        "关键计划生成时间 < 5 分钟",
+        "AI 建议被采纳或二次编辑率 > 40%",
+        `与“${outcome}”相关的核心效率指标提升 30%`,
+      ],
+      mvpScope: [
+        "业务数据录入",
+        "AI 建议生成",
+        "计划与任务看板",
+        "异常提醒",
+        "效果复盘",
+        "材料导出",
+      ],
+    },
+    prototype: {
+      userFlow:
+        "录入业务信息 -> 选择优化目标 -> 生成 AI 建议 -> 查看计划和风险 -> 分配执行任务 -> 复盘并导出材料",
+      screens: [
+        {
+          name: "工作台首页",
+          goal: `汇总${targetSegment || "用户"}的关键指标、待处理事项和 AI 建议入口。`,
+          primaryAction: "生成 AI 建议",
+          components: ["关键指标", "待办队列", "AI 建议入口", "最近复盘"],
+        },
+        {
+          name: "数据录入页",
+          goal: "录入当前业务状态、约束条件和需要优化的目标。",
+          primaryAction: "分析当前状态",
+          components: ["数据表单", "约束条件", "历史记录", "校验提示"],
+        },
+        {
+          name: "AI 分析页",
+          goal: `围绕“${outcome}”给出原因分析、优先级和风险提示。`,
+          primaryAction: "生成优化建议",
+          components: ["问题诊断", "优先级排序", "风险提示", "依据说明"],
+        },
+        {
+          name: "计划建议页",
+          goal: "把 AI 分析转成可执行计划、资源分配和替代方案。",
+          primaryAction: "确认计划",
+          components: ["建议卡片", "资源安排", "替代方案", "确认按钮"],
+        },
+        {
+          name: "执行看板页",
+          goal: "追踪任务状态、异常变化和执行效果。",
+          primaryAction: "处理异常",
+          components: ["任务看板", "异常提醒", "负责人", "进度状态"],
+        },
+        {
+          name: "复盘导出页",
+          goal: "导出执行记录、效果复盘和下一轮优化建议。",
+          primaryAction: "导出复盘材料",
+          components: ["效果指标", "复盘摘要", "导出选项", "下一步建议"],
+        },
+      ],
+      prdLinks: [
+        {
+          requirement: "录入关键业务状态并选择优化目标",
+          screen: "工作台首页 + 数据录入页",
+          rationale: "先把业务上下文结构化，AI 建议才有可解释依据。",
+        },
+        {
+          requirement: `围绕“${outcome}”生成行动建议`,
+          screen: "AI 分析页 + 计划建议页",
+          rationale: "把分析结果转成可执行计划，减少用户自己判断和排程的成本。",
+        },
+        {
+          requirement: "追踪执行结果并形成复盘材料",
+          screen: "执行看板页 + 复盘导出页",
+          rationale: "让建议进入真实工作流，并用结果数据闭环验证价值。",
+        },
+      ],
+      openDesignPrompt:
+        `参考 OpenDesign 的 Studio Shell、Artifact Canvas 和 iframe-style preview，把“${idea}”生成可编辑页面原型和导出结构。`,
+      liveArtifact: {
+        schemaVersion: "open-design-live-artifact.v1",
+        id: `${slug}-prototype-preview`,
+        title: `${title} Prototype Preview`,
+        preview: {
+          type: "html",
+          entry: "index.html",
+        },
+        files: [
+          {
+            path: "artifact.json",
+            mimeType: "application/json",
+            purpose: "artifact manifest",
+          },
+          {
+            path: "data.json",
+            mimeType: "application/json",
+            purpose: "structured product pack data",
+          },
+          {
+            path: "index.html",
+            mimeType: "text/html",
+            purpose: "previewable prototype shell",
+          },
+        ],
+      },
+    },
+    research: {
+      marketOpportunity: [
+        {
+          label: "市场窗口",
+          value: `${domain.label} AI 化`,
+          detail:
+            `${domain.label}正在从“人工经验 + 分散系统”转向“数据驱动 + AI 辅助决策”，适合先从能直接影响${domain.businessMetric}的高频场景切入。`,
+        },
+        {
+          label: "早期切入",
+          value: "高频任务与小团队",
+          detail:
+            `优先面向${domain.earlySegment}，用一个清晰工作流证明“${outcome}”的效率价值。`,
+        },
+        {
+          label: "增长渠道",
+          value: "行业案例 + 模板分发",
+          detail: `通过${domain.channels}获取早期用户，并把成功案例沉淀为可复用模板。`,
+        },
+      ],
+      insights: [
+        `如果能直接帮助${targetLabel}${outcome}，产品价值会比单纯记录工具更清晰。`,
+        "高频业务场景适合先从一个明确决策点切入，再逐步扩展协作和数据能力。",
+        `可解释建议、人工确认和复盘导出是进入${domain.label}真实工作流的关键。`,
+      ],
+    },
+    competitors: [
+      {
+        competitor: domain.existingSystems,
+        positioning: `${domain.label}里的现有业务系统`,
+        strength: "已经承载部分业务数据，用户迁移成本较低",
+        weakness: "更偏记录和流程管理，缺少跨数据的 AI 判断、建议生成和复盘闭环",
+        opportunity: "以 AI 分析层和行动建议层切入，不必一开始替换存量系统",
+      },
+      {
+        competitor: "ChatGPT / Claude 等通用 AI 助手",
+        positioning: "通用 AI 助手",
+        strength: "推理和文本生成能力强",
+        weakness: "缺少固定业务字段、执行状态、团队协作和持续复盘结构",
+        opportunity: `把通用 AI 能力封装成${domain.label}可直接使用的工作流`,
+      },
+      {
+        competitor: "Excel / 飞书表格 / 微信群",
+        positioning: "低成本手工协作方式",
+        strength: "上手快、灵活、几乎没有采购门槛",
+        weakness: "依赖人工更新和经验判断，异常提醒、责任追踪和效果复盘薄弱",
+        opportunity: "用自动化录入、结构化建议和一键导出降低替换阻力",
+      },
+      {
+        competitor: "垂直 SaaS 新模块",
+        positioning: "现有厂商可能推出的 AI 扩展功能",
+        strength: "已有客户、渠道和数据入口",
+        weakness: "通常围绕原系统能力增量开发，跨工具整合和用户体验可能受限",
+        opportunity: "先做轻量、可配置、跨系统的 AI 决策助手，验证垂直价值",
+      },
+    ],
+    personas: [
+      {
+        name: "核心使用者",
+        role: targetLabel,
+        goal: `快速获得围绕“${outcome}”的可执行建议`,
+        pain: `需要在${domain.existingSystems}和人工经验之间来回切换，判断和跟进成本高`,
+      },
+      {
+        name: "业务负责人",
+        role: domain.managerRole,
+        goal: `看到${domain.businessMetric}的变化，并判断方案是否值得继续投入`,
+        pain: "缺少统一视图，难以知道问题来自数据、流程、人员还是执行偏差",
+      },
+      {
+        name: "协作执行者",
+        role: domain.operatorRole,
+        goal: "按系统建议完成任务、处理异常，并把结果沉淀下来",
+        pain: "任务分配和反馈分散，临时变化多，复盘时很难还原过程",
+      },
+    ],
+    roadmap: [
+      {
+        horizon: "MVP / 0-2 周",
+        items: [
+          `${domain.criticalData}录入`,
+          `围绕“${outcome}”生成 AI 建议`,
+          "计划确认与任务分配",
+          "Markdown/HTML 导出",
+        ],
+      },
+      {
+        horizon: "Pilot / 2-6 周",
+        items: ["多项目历史", "异常提醒", "效果复盘看板", "团队协作和权限"],
+      },
+      {
+        horizon: "Scale / 2-3 月",
+        items: ["接入现有业务系统", "自定义字段和流程", "多智能体编排", "PPTX/PDF 二进制导出"],
+      },
+    ],
+    summary: {
+      headline: `${title} 把一个产品想法转成可评审、可编辑、可导出的完整产品方案包。`,
+      bullets: [
+        `核心价值是帮助${targetSegment || "目标用户"}${outcome}。`,
+        "MVP 聚焦数据录入、AI 建议、计划执行、异常提醒和复盘导出。",
+        "产品需要优先证明在高频业务场景中的效率提升，再扩展团队协作和系统集成。",
+      ],
+      nextActions: [
+        "补充更具体的业务数据字段和约束条件，验证 AI 建议是否足够可执行。",
+        "用低保真原型测试核心用户路径，确认用户是否愿意按建议行动。",
+        "定义 2-3 个能量化体现提效的指标，作为 MVP 成功判断标准。",
+      ],
+    },
+    artifactIndex: cloneArtifactIndex(),
+  };
+}
+
 export function buildFinSightProductPack(input = defaultFinSightIdea): ProductPack {
   return {
     schemaVersion: "pm-product-pack.v1",

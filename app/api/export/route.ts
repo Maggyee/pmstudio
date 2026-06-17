@@ -3,7 +3,7 @@ import {
   type ExportFormat,
 } from "@/lib/product-pack-export";
 import {
-  buildFinSightProductPack,
+  buildProductPackFromIdea,
   defaultFinSightIdea,
   type ProductPack,
 } from "@/lib/product-pack";
@@ -41,7 +41,7 @@ function buildExportResponse({
   input?: string;
   productPack?: ProductPack;
 }) {
-  const pack = productPack ?? buildFinSightProductPack(input || defaultFinSightIdea);
+  const pack = productPack ?? buildProductPackFromIdea(input || defaultFinSightIdea);
   const exported = createProductPackExport({
     artifactId,
     format,

@@ -4,7 +4,7 @@ import {
   type PMWorkflow,
   type PMWorkflowArtifact,
 } from "@/lib/pm-workflows";
-import { buildFinSightProductPack, type ProductPack } from "@/lib/product-pack";
+import { buildProductPackFromIdea, type ProductPack } from "@/lib/product-pack";
 
 export type AgentProviderId = "mock" | "codex" | "claude-code" | "api-fallback";
 
@@ -283,7 +283,7 @@ export function generateMockPack({
 }): GeneratedPack {
   const workflow = getHarnessWorkflow(workflowId);
   const pmWorkflow = getPMWorkflow(workflowId);
-  const productPack = buildFinSightProductPack(input);
+  const productPack = buildProductPackFromIdea(input);
 
   if (workflowId === "project-summarizer") {
     return {
@@ -296,7 +296,7 @@ export function generateMockPack({
         {
           type: "running",
           agent: "Summary Agent",
-          message: "读取 FinSight 的 PRD、原型、竞品和路线图 artifact。",
+          message: `读取 ${productPack.project.title} 的 PRD、原型、竞品和路线图 artifact。`,
         },
         {
           type: "artifact",
@@ -327,7 +327,7 @@ export function generateMockPack({
         {
           type: "running",
           agent: "PRD Agent",
-          message: "参考 pm-skills 的 PRD 与 user story 结构，提取 FinSight 核心功能、角色和任务边界。",
+          message: `参考 pm-skills 的 PRD 与 user story 结构，提取 ${productPack.project.title} 核心功能、角色和任务边界。`,
         },
         {
           type: "artifact",
@@ -346,7 +346,7 @@ export function generateMockPack({
         "user-flow": productPack.prototype.userFlow,
         "prototype-structure": productPack.prototype.screens.map((screen) => screen.name),
         "prototype-brief": productPack.prototype.openDesignPrompt,
-        "prototype-preview": "FinSight 原型预览已在 Prototype tab 中展示，可继续接入 iframe-style live artifact。",
+        "prototype-preview": `${productPack.project.title} 原型预览已在 Prototype tab 中展示，可继续接入 iframe-style live artifact。`,
       },
       openDesignPromptPlaceholder: productPack.prototype.openDesignPrompt,
     };

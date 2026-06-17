@@ -53,3 +53,9 @@ Reason: this keeps API output, UI summary, PRD, prototype, research, competitor,
 Decision: store the last generated Product Pack and harness events in browser-local storage, and POST the current Product Pack to `/api/export` for downloads.
 
 Reason: the competition demo needs refresh recovery and editable exports, but adding a database or server-side project model would slow down the sprint. Browser-local persistence keeps the OpenDesign-style edit/preview loop demonstrable while preserving a clear path to server persistence later.
+
+## 2026-06-17: Move Beyond A Single FinSight Demo
+
+Decision: keep FinSight as the default demo/preset, but make `/api/generate` build a Product Pack from arbitrary product ideas.
+
+Reason: PM Studio must be usable as a real product, not only a scripted demo. A user should be able to enter a different product idea and get a corresponding positioning, PRD, user flow, prototype structure, market direction, roadmap, and executive summary.

@@ -41,10 +41,13 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Project executive summary is now a first-class workspace tab with preview and export actions mapped to `executive-summary`.
 - Bottom run input now includes FinSight demo prompt presets for full pack generation, PRD-to-prototype linkage, and project summary.
 - Summary tab generation now maps to the `project-summarizer` workflow.
+- Product Pack generation now supports arbitrary product ideas instead of only the FinSight demo; FinSight remains a preset/reference example.
+- Generic Product Pack output now infers target users, product shape, domain profile, market window, competitor categories, personas, and roadmap from the submitted idea.
+- Prototype preview now reads Product Pack title, value proposition, flow, screens, and artifact files instead of hard-coded FinSight copy.
 
 ## In Progress
 
-- Preparing adapter output parsing and binary export replacement for a later MVP slice.
+- Preparing richer user input fields, adapter output parsing, and binary export replacement for a later MVP slice.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

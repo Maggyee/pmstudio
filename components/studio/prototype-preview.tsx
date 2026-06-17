@@ -27,6 +27,10 @@ function getViewportFromParam(viewport?: string) {
   return viewports.find((item) => item.param === viewport) ?? viewports[0];
 }
 
+function getPreviewDomain(productPack?: ProductPack) {
+  return `${productPack?.id.replace(/-product-pack$/, "") ?? "finsight"}.pm`;
+}
+
 export function StudioPrototypePreview({
   activeViewport,
   exportHref,
@@ -48,6 +52,7 @@ export function StudioPrototypePreview({
   const selectedViewport = getViewportFromParam(activeViewport);
   const isMobile = selectedViewport.param === "mobile";
   const isTablet = selectedViewport.param === "tablet";
+  const projectTitle = productPack?.project.title ?? "FinSight";
   const prototypeTitle = productPack?.prototype.liveArtifact.title ?? "金融投研工作台变体 A";
   const deliveryFiles = productPack?.prototype.liveArtifact.files.map((file) => file.path) ?? [
     "市场简报.pdf",
@@ -57,6 +62,23 @@ export function StudioPrototypePreview({
   ];
   const highlights =
     productPack?.prototype.screens.slice(0, 4).map((screen) => screen.name) ?? prototypeHighlights;
+  const navItems =
+    productPack?.prototype.screens.slice(1, 5).map((screen) => screen.name) ?? [
+      "市场雷达",
+      "配置建议",
+      "产品池",
+      "合规审阅",
+    ];
+  const generatedLabel = productPack ? "已生成方案" : "已生成客户简报";
+  const primaryAction = productPack?.prototype.screens[0]?.primaryAction ?? "生成简报";
+  const promptPlaceholder = productPack
+    ? `为 ${projectTitle} 生成核心用户路径...`
+    : "为稳健型客户生成本周配置复盘...";
+  const heroTitle =
+    productPack?.project.valueProposition ?? "把市场信号，变成客户可理解的配置建议。";
+  const heroDescription =
+    productPack?.prototype.userFlow ??
+    "在一个工作区内生成市场简报、客户画像、资产配置草案、风险提示和跟进任务。";
 
   return (
     <div className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
@@ -113,10 +135,10 @@ export function StudioPrototypePreview({
               <div className="flex items-center gap-2">
                 {briefGenerated ? (
                   <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-                    已生成客户简报
+                    {generatedLabel}
                   </span>
                 ) : null}
-                <span className="text-xs font-medium text-zinc-500">finsight.pm</span>
+                <span className="text-xs font-medium text-zinc-500">{getPreviewDomain(productPack)}</span>
               </div>
             </div>
 
@@ -124,9 +146,9 @@ export function StudioPrototypePreview({
               <nav className={cn("flex items-center gap-6", isMobile ? "mb-7" : "mb-8")}>
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-xs text-white">
-                    LP
+                    AI
                   </span>
-                  FinSight
+                  <span className="max-w-[180px] truncate">{projectTitle}</span>
                 </div>
                 <div
                   className={cn(
@@ -134,10 +156,11 @@ export function StudioPrototypePreview({
                     (isMobile || isTablet) && "md:hidden",
                   )}
                 >
-                  <span>市场雷达</span>
-                  <span>配置建议</span>
-                  <span>产品池</span>
-                  <span>合规审阅</span>
+                  {navItems.map((item) => (
+                    <span className="max-w-[88px] truncate" key={item}>
+                      {item}
+                    </span>
+                  ))}
                 </div>
                 <button
                   className={cn(
@@ -148,7 +171,7 @@ export function StudioPrototypePreview({
                   onClick={() => setBriefGenerated(true)}
                   type="button"
                 >
-                  {briefGenerated ? "已生成" : "生成简报"}
+                  {briefGenerated ? "已生成" : primaryAction}
                 </button>
               </nav>
 
@@ -161,10 +184,10 @@ export function StudioPrototypePreview({
                 <div>
                   <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     <PanelTop className="h-3.5 w-3.5" />
-                    AI 财富投研工作台
+                    AI 产品方案工作台
                     {briefGenerated ? (
                       <span className="rounded-full bg-white px-2 py-0.5 text-emerald-700">
-                        已生成客户简报
+                        {generatedLabel}
                       </span>
                     ) : null}
                   </div>
@@ -174,7 +197,7 @@ export function StudioPrototypePreview({
                       isMobile ? "text-2xl" : isTablet ? "text-3xl sm:text-4xl" : "text-3xl sm:text-4xl 2xl:text-5xl",
                     )}
                   >
-                    把市场信号，变成客户可理解的配置建议。
+                    {heroTitle}
                   </h3>
                   <p
                     className={cn(
@@ -182,11 +205,11 @@ export function StudioPrototypePreview({
                       isMobile ? "leading-6" : "leading-7",
                     )}
                   >
-                    在一个工作区内生成市场简报、客户画像、资产配置草案、风险提示和跟进任务。
+                    {heroDescription}
                   </p>
                   <div className={cn("mt-5 flex max-w-xl flex-col gap-2", !isMobile && "sm:flex-row")}>
                     <div className="min-h-10 flex-1 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-500">
-                      为稳健型客户生成本周配置复盘...
+                      {promptPlaceholder}
                     </div>
                     <button
                       className={cn(
@@ -196,7 +219,7 @@ export function StudioPrototypePreview({
                       onClick={() => setBriefGenerated(true)}
                       type="button"
                     >
-                      {briefGenerated ? "简报已生成" : "生成简报"}
+                      {briefGenerated ? generatedLabel : primaryAction}
                       {briefGenerated ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
                     </button>
                   </div>
@@ -204,7 +227,7 @@ export function StudioPrototypePreview({
 
                 <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <p className="text-sm font-semibold">顾问交付物</p>
+                    <p className="text-sm font-semibold">方案交付物</p>
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
                       {deliveryFiles.length} 份文件
                     </span>
