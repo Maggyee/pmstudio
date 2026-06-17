@@ -11,10 +11,8 @@ import Image from "next/image";
 
 import { ArtifactCanvas } from "@/components/studio/artifact-canvas";
 import { StudioSidebar } from "@/components/studio/sidebar";
-import {
-  studioDesignSystems,
-  studioTemplates,
-} from "@/lib/mock-data";
+import { studioDesignSystems } from "@/lib/mock-data";
+import type { HarnessEvent, HarnessWorkflow } from "@/lib/agent-harness";
 import type { ProductPack } from "@/lib/product-pack";
 
 function TopbarPicker({
@@ -48,13 +46,18 @@ function TopbarPicker({
 export function StudioShell({
   activeArtifact,
   activeViewport,
+  activeWorkflow,
+  agentEvents,
   productPack,
 }: {
   activeArtifact?: string;
   activeViewport?: string;
+  activeWorkflow?: HarnessWorkflow;
+  agentEvents?: HarnessEvent[];
   productPack?: ProductPack;
 }) {
   const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
+  const workflowTitle = activeWorkflow?.title ?? "Idea-to-Product Pack";
 
   return (
     <main className="min-h-screen text-[#191919]">
@@ -90,8 +93,8 @@ export function StudioShell({
             />
             <TopbarPicker
               icon={<GalleryVerticalEnd className="h-3.5 w-3.5" />}
-              label="模板"
-              value={studioTemplates[0]}
+              label="工作流"
+              value={workflowTitle}
             />
           </div>
 
@@ -124,7 +127,7 @@ export function StudioShell({
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="hidden border-r border-[#eeeeee] bg-white/72 lg:block">
           <div className="sticky top-0 h-screen overflow-y-auto">
-            <StudioSidebar />
+            <StudioSidebar activeWorkflow={activeWorkflow} productPack={productPack} />
           </div>
         </aside>
 
@@ -138,6 +141,7 @@ export function StudioShell({
           <ArtifactCanvas
             activeArtifact={activeArtifact}
             activeViewport={activeViewport}
+            agentEvents={agentEvents}
             productPack={productPack}
           />
         </section>

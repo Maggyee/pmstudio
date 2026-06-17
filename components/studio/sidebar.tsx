@@ -4,10 +4,9 @@ import {
   Plus,
 } from "lucide-react";
 
-import {
-  studioProjects,
-  studioWorkflows,
-} from "@/lib/mock-data";
+import type { HarnessWorkflow } from "@/lib/agent-harness";
+import { getPublicPMWorkflows } from "@/lib/pm-workflows";
+import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
 function SidebarGroup({
@@ -50,12 +49,23 @@ function SidebarGroup({
   );
 }
 
-export function StudioSidebar() {
+export function StudioSidebar({
+  activeWorkflow,
+  productPack,
+}: {
+  activeWorkflow?: HarnessWorkflow;
+  productPack?: ProductPack;
+}) {
+  const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
+  const projectItems = [projectTitle];
+  const workflowItems = getPublicPMWorkflows().map((workflow) => workflow.name);
+  const activeWorkflowTitle = activeWorkflow?.title ?? "Idea-to-Product Pack";
+
   return (
     <div className="border-b border-black/10 p-4">
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold">FinSight 智能投研工作台</p>
+          <p className="text-sm font-semibold">{projectTitle}</p>
           <p className="text-xs text-neutral-500">产品方案工作区</p>
         </div>
         <button
@@ -68,15 +78,15 @@ export function StudioSidebar() {
 
       <div className="space-y-5">
         <SidebarGroup
-          activeItem="FinSight 智能投研工作台"
+          activeItem={projectTitle}
           icon={<FolderKanban className="h-3.5 w-3.5" />}
-          items={studioProjects}
+          items={projectItems}
           title="项目"
         />
         <SidebarGroup
-          activeItem="完整产品方案包"
+          activeItem={activeWorkflowTitle}
           icon={<GitBranch className="h-3.5 w-3.5" />}
-          items={studioWorkflows}
+          items={workflowItems}
           title="工作流"
         />
       </div>

@@ -7,11 +7,58 @@ import {
   Paperclip,
 } from "lucide-react";
 
-import { studioTimeline } from "@/lib/mock-data";
+import type { HarnessEvent } from "@/lib/agent-harness";
+import {
+  buildFinSightProductPack,
+  defaultFinSightIdea,
+  type ProductPack,
+} from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
-export function AgentPanel({ variant = "column" }: { variant?: "column" | "floating" }) {
+const fallbackEvents: HarnessEvent[] = [
+  {
+    type: "queued",
+    agent: "PM Orchestrator",
+    message: "读取产品想法并加载 Product Pack workflow。",
+  },
+  {
+    type: "running",
+    agent: "需求分析 Agent",
+    message: "拆解目标用户、场景、痛点和产品假设。",
+  },
+  {
+    type: "artifact",
+    agent: "PRD Agent",
+    message: "输出 PRD、核心功能和 MVP 范围。",
+    artifactId: "prd",
+  },
+];
+
+function getEventIcon(event: HarnessEvent) {
+  if (event.type === "done" || event.type === "artifact") return <Check className="h-3.5 w-3.5" />;
+  if (event.type === "running") return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
+
+  return <CircleDashed className="h-3.5 w-3.5" />;
+}
+
+function getEventLabel(event: HarnessEvent) {
+  if (event.artifactId) return `${event.agent} · ${event.artifactId}`;
+
+  return event.agent;
+}
+
+export function AgentPanel({
+  events = fallbackEvents,
+  productPack,
+  variant = "column",
+}: {
+  events?: HarnessEvent[];
+  productPack?: ProductPack;
+  variant?: "column" | "floating";
+}) {
   const floating = variant === "floating";
+  const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
+  const generatedCount = pack.artifactIndex.filter((artifact) => artifact.status === "ready").length;
 
   return (
     <div className={cn("space-y-3", floating ? "" : "p-4")}>
@@ -27,16 +74,16 @@ export function AgentPanel({ variant = "column" }: { variant?: "column" | "float
         </div>
         <div className={cn("space-y-3 text-sm leading-6 text-neutral-700", floating && "text-[13px] leading-6")}>
           <p>
-            需求分析、PRD、竞品、调研、原型和汇报材料 Agent 正在协同生成 FinSight 示例产品方案。
+            多个 Agent 正在围绕 {pack.project.title} 生成、校验和整理产品方案包。
           </p>
           <ul className="space-y-2">
             <li className="flex gap-2">
               <Check className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
-              每个 Agent 负责一个产品经理工作环节。
+              已组织 {generatedCount} 个可编辑、可评审、可导出的 artifact。
             </li>
             <li className="flex gap-2">
               <Check className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
-              交付物保持可编辑、可评审、可导出。
+              当前数据来自统一 Product Pack，可替换为真实 Codex / Claude Code 运行结果。
             </li>
           </ul>
         </div>
@@ -55,25 +102,26 @@ export function AgentPanel({ variant = "column" }: { variant?: "column" | "float
           </span>
         </div>
         <div className="space-y-3">
-          {studioTimeline.map((step, index) => {
-            const done = index < 3;
-            const running = index === 3;
+          {events.map((event, index) => {
+            const done = event.type === "done" || event.type === "artifact";
+            const running = event.type === "running";
 
             return (
-              <div className="flex items-center gap-3" key={step}>
+              <div className="flex items-start gap-3" key={`${event.agent}-${event.message}-${index}`}>
                 <span
                   className={cn(
-                    "flex h-6 w-6 items-center justify-center rounded-full border",
+                    "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
                     done && "border-emerald-500 bg-emerald-500 text-white",
                     running && "border-blue-500 bg-blue-50 text-blue-700",
                     !done && !running && "border-neutral-200 bg-white text-neutral-400",
                   )}
                 >
-                  {done ? <Check className="h-3.5 w-3.5" /> : null}
-                  {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  {!done && !running ? <CircleDashed className="h-3.5 w-3.5" /> : null}
+                  {getEventIcon(event)}
                 </span>
-                <span className="text-sm text-neutral-700">{step}</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-neutral-800">{getEventLabel(event)}</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-neutral-500">{event.message}</span>
+                </span>
               </div>
             );
           })}

@@ -23,10 +23,13 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Typed FinSight Product Pack added under `lib/product-pack.ts` and shared by `/api/generate` plus the `/app` workspace summary.
 - Prototype tab linkage now reads Product Pack `prototype.prdLinks`, `userFlow`, `screens`, OpenDesign prompt, and live artifact files.
 - PRD, Research, Competitor, Persona, and Roadmap tabs now read Product Pack data in the workspace.
+- Sidebar project/workflow navigation now reads Product Pack metadata and PM workflow registry.
+- Agent orchestration panel now renders harness events from the current generated run.
+- Artifact action buttons now derive export options from each Product Pack artifact.
 
 ## In Progress
 
-- Replacing remaining navigation, timeline, and action mock lists with workflow registry and Product Pack metadata.
+- Preparing provider detection and deterministic export endpoints for the next MVP slice.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

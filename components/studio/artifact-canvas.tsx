@@ -26,9 +26,9 @@ import { PrdPrototypeMap } from "@/components/prd-prototype-map";
 import { ResearchPreview } from "@/components/studio/research-preview";
 import { StudioPrototypePreview } from "@/components/studio/prototype-preview";
 import {
-  artifactActions,
   studioTabs,
 } from "@/lib/mock-data";
+import type { HarnessEvent } from "@/lib/agent-harness";
 import {
   buildFinSightProductPack,
   defaultFinSightIdea,
@@ -171,6 +171,7 @@ function ActionIcon({ action }: { action: string }) {
   if (action.includes("Markdown")) return <FileText className="h-4 w-4" />;
   if (action.includes("PDF")) return <Download className="h-4 w-4" />;
   if (action.includes("HTML")) return <FileCode2 className="h-4 w-4" />;
+  if (action.includes("JSON")) return <FileCode2 className="h-4 w-4" />;
   if (action.includes("PPTX")) return <Presentation className="h-4 w-4" />;
   if (action.includes("Codex")) return <Send className="h-4 w-4" />;
   return <Share2 className="h-4 w-4" />;
@@ -222,6 +223,15 @@ const artifactParamByTab: Record<(typeof studioTabs)[number], string> = {
   路线图: "roadmap",
 };
 
+const artifactIndexIdByTab: Record<(typeof studioTabs)[number], string> = {
+  PRD: "prd",
+  原型: "prototype",
+  调研: "research",
+  竞品: "competitors",
+  画像: "personas",
+  路线图: "roadmap",
+};
+
 const tabByArtifactParam: Record<string, (typeof studioTabs)[number]> = {
   prd: "PRD",
   prototype: "原型",
@@ -247,19 +257,43 @@ function getArtifactHref(tab: (typeof studioTabs)[number], activeViewport?: stri
   return `/app?artifact=${artifact}`;
 }
 
+function getExportActionLabel(format: ProductPack["artifactIndex"][number]["exportFormats"][number]) {
+  const labels: Record<ProductPack["artifactIndex"][number]["exportFormats"][number], string> = {
+    html: "导出 HTML",
+    json: "导出 JSON",
+    markdown: "导出 Markdown",
+    pdf: "导出 PDF",
+    pptx: "导出 PPTX",
+  };
+
+  return labels[format];
+}
+
+function getArtifactActions(tab: (typeof studioTabs)[number], productPack: ProductPack) {
+  const artifactId = artifactIndexIdByTab[tab];
+  const artifact = productPack.artifactIndex.find((item) => item.id === artifactId);
+  const exportActions = artifact?.exportFormats.map(getExportActionLabel) ?? ["导出 Markdown"];
+  const openAction = tab === "原型" ? "在 Open Design 打开" : "发送到 Codex";
+
+  return [...exportActions, openAction];
+}
+
 export function ArtifactCanvas({
   activeArtifact,
   activeViewport,
+  agentEvents,
   productPack,
 }: {
   activeArtifact?: string;
   activeViewport?: string;
+  agentEvents?: HarnessEvent[];
   productPack?: ProductPack;
 }) {
   const activeTab = getTabFromArtifactParam(activeArtifact);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "预览">("生成");
   const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
   const projectTitle = pack.project.title;
+  const artifactActions = getArtifactActions(activeTab, pack);
 
   return (
     <section className="min-h-screen bg-[#fbfaf7]/62">
@@ -341,7 +375,7 @@ export function ArtifactCanvas({
 
         <div className="pointer-events-none absolute right-4 top-36 z-30 hidden w-[290px] lg:block 2xl:right-8 2xl:w-[310px]">
           <div className="pointer-events-none">
-            <AgentPanel variant="floating" />
+            <AgentPanel events={agentEvents} productPack={pack} variant="floating" />
           </div>
         </div>
 
