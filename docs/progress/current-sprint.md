@@ -33,15 +33,18 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Workspace now restores the last generated Product Pack and agent events from browser-local storage.
 - Edit mode now updates PRD fields, prototype flow, OpenDesign prompt, screen goals, summary bullets, and next actions directly in the current Product Pack.
 - Export buttons now POST the current Product Pack to `/api/export`, so locally edited artifacts can be downloaded.
+- `/api/generate` now accepts `providerId` and returns adapter metadata with run id and run mode.
+- Workspace generation controls now let the user choose Mock, Codex, or Claude provider mode.
+- Codex adapter dry-run now builds the OpenDesign/PM Skills-informed prompt and can optionally attempt local `codex exec` only when `PMSTUDIO_ENABLE_LOCAL_AGENT=1`.
 
 ## In Progress
 
-- Preparing real Codex run adapter, simple run history, and binary export replacement for a later MVP slice.
+- Preparing simple run history, adapter output parsing, and binary export replacement for a later MVP slice.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred
 
-- Real Codex/Claude Code subprocess spawning if it threatens the demo timeline.
+- Real Claude Code subprocess spawning if it threatens the demo timeline.
 - Server-side persistent project storage.
 - Authentication and workspace sharing.
 - Automated tests beyond lint/build.

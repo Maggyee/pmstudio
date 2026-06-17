@@ -55,6 +55,21 @@ export type HarnessEvent = {
   artifactId?: string;
 };
 
+export type AgentRunMode =
+  | "mock"
+  | "codex-dry-run"
+  | "codex-cli"
+  | "claude-dry-run"
+  | "api-fallback-dry-run";
+
+export type AdapterRunMetadata = {
+  providerId: AgentProviderId;
+  mode: AgentRunMode;
+  command: string;
+  promptPreview?: string;
+  outputPreview?: string;
+};
+
 export type GeneratedPack = {
   workflowId: WorkflowId;
   input: string;
@@ -63,6 +78,10 @@ export type GeneratedPack = {
   events: HarnessEvent[];
   artifacts: Record<string, string | string[]>;
   productPack: ProductPack;
+  runId?: string;
+  providerId?: AgentProviderId;
+  runMode?: AgentRunMode;
+  adapter?: AdapterRunMetadata;
   openDesignPromptPlaceholder?: string;
 };
 

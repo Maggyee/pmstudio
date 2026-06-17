@@ -24,13 +24,14 @@ PM Skills provides the PM reasoning and output structure. The harness converts r
 
 ## Current Implementation
 
-- `lib/agent-harness.ts`: provider-neutral types, planned adapters, reference architecture, workflow definitions, output artifacts, and a mock generator.
+- `lib/agent-harness.ts`: provider-neutral types, adapter metadata, reference architecture, workflow definitions, output artifacts, and a mock generator.
+- `lib/agent-runner.ts`: server-side workflow runner that accepts a provider id, builds an OpenDesign/PM Skills-informed prompt, returns stable Product Pack data, and only attempts local Codex CLI when explicitly enabled.
 - `lib/provider-detection.ts`: server-only helper that detects local Codex and Claude Code CLIs for `/api/harness`.
 - `lib/product-pack-export.ts`: deterministic Product Pack export renderer for Markdown, JSON, HTML, and placeholder PDF/PPTX metadata.
 - `lib/pm-skills-registry.ts`: local registry that maps raw PM Skills source skills to user-friendly actions and PM Studio use cases.
 - `lib/pm-workflows.ts`: user-facing workflow registry that turns PM Skills method references into PM Studio product workflows.
 - `app/api/harness/route.ts`: GET endpoint that exposes detected providers and workflows.
-- `app/api/generate/route.ts`: POST endpoint that returns a mock artifact pack for `idea-to-product-pack` or `prd-to-prototype-linker`.
+- `app/api/generate/route.ts`: POST endpoint that accepts `providerId`, `workflowId`, and `input`, then returns a generated Product Pack plus adapter run metadata.
 - `app/api/export/route.ts`: GET/POST endpoint that exports Product Pack artifacts by `artifact` and `format`.
 - `components/studio/artifact-canvas.tsx`: workspace state surface that restores the last Product Pack from browser storage, supports local artifact edits, and posts the current Product Pack to `/api/export`.
 - `skills/*/SKILL.md`: project-local workflow instructions for future prompt or native skill injection.
@@ -55,11 +56,20 @@ The front end should consume workflow names and `userFacingActions`. It should n
 
 1. Mock provider for UI and API development.
 2. Local provider detection for Codex and Claude Code.
-3. Optional Codex adapter through `codex exec --cwd <dir> "<prompt>"`.
+3. Optional Codex adapter through `codex exec` with prompt delivered through stdin.
 4. Optional Claude Code adapter through stream-json mode.
 5. API fallback only after the product flow is stable.
 
-Detection is intentionally lightweight: `/api/harness` marks Codex or Claude Code as available only when their CLI binaries are present in PATH. It does not spawn a real agent run yet.
+Detection is intentionally lightweight: `/api/harness` marks Codex or Claude Code as available only when their CLI binaries are present in PATH.
+
+`/api/generate` now has an adapter runner boundary:
+
+- `mock`: deterministic in-process Product Pack generation.
+- `codex`: dry-run by default; builds the Codex prompt and command metadata without spawning a subprocess.
+- `claude-code`: dry-run by default; preserves the stream-json adapter contract for later.
+- `api-fallback`: dry-run placeholder.
+
+Set `PMSTUDIO_ENABLE_LOCAL_AGENT=1` before starting Next.js to let the Codex provider attempt a local CLI run. Even then, PM Studio still renders the stable typed Product Pack and treats CLI output as adapter metadata until parsing is added.
 
 ## Workspace State Plan
 

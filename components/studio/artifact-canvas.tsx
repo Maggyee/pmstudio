@@ -31,7 +31,13 @@ import { StudioPrototypePreview } from "@/components/studio/prototype-preview";
 import {
   studioTabs,
 } from "@/lib/mock-data";
-import type { GeneratedPack, HarnessEvent, WorkflowId } from "@/lib/agent-harness";
+import type {
+  AgentProviderId,
+  AgentRunMode,
+  GeneratedPack,
+  HarnessEvent,
+  WorkflowId,
+} from "@/lib/agent-harness";
 import {
   buildFinSightProductPack,
   defaultFinSightIdea,
@@ -612,6 +618,36 @@ function getWorkflowIdForTab(tab: (typeof studioTabs)[number]): WorkflowId {
   return "idea-to-product-pack";
 }
 
+const providerOptions: Array<{
+  id: AgentProviderId;
+  label: string;
+}> = [
+  {
+    id: "mock",
+    label: "Mock",
+  },
+  {
+    id: "codex",
+    label: "Codex",
+  },
+  {
+    id: "claude-code",
+    label: "Claude",
+  },
+];
+
+function getRunModeLabel(mode?: AgentRunMode) {
+  const labels: Record<AgentRunMode, string> = {
+    "api-fallback-dry-run": "API dry-run",
+    "claude-dry-run": "Claude dry-run",
+    "codex-cli": "Codex CLI",
+    "codex-dry-run": "Codex dry-run",
+    mock: "Mock provider",
+  };
+
+  return mode ? labels[mode] : "Mock provider";
+}
+
 export function ArtifactCanvas({
   activeArtifact,
   activeViewport,
@@ -631,6 +667,8 @@ export function ArtifactCanvas({
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportingAction, setExportingAction] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
+  const [lastRunMode, setLastRunMode] = useState<AgentRunMode>("mock");
   const [prompt, setPrompt] = useState(currentPack.sourceIdea);
   const [runError, setRunError] = useState<string | null>(null);
   const projectTitle = currentPack.project.title;
@@ -756,6 +794,7 @@ export function ArtifactCanvas({
       const response = await fetch("/api/generate", {
         body: JSON.stringify({
           input,
+          providerId: selectedProvider,
           workflowId: getWorkflowIdForTab(activeTab),
         }),
         headers: {
@@ -772,6 +811,7 @@ export function ArtifactCanvas({
       const generated = (await response.json()) as GeneratedPack;
       setCurrentPack(generated.productPack);
       setCurrentEvents(generated.events);
+      setLastRunMode(generated.runMode ?? "mock");
       setPrompt(generated.input);
       setActiveMode("预览");
     } catch (error) {
@@ -946,6 +986,31 @@ export function ArtifactCanvas({
           className="liquid-glass sticky bottom-5 z-30 mx-auto mt-10 max-w-2xl rounded-[22px] p-3"
           onSubmit={handleGenerate}
         >
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-black/8 bg-white/45 p-1">
+              {providerOptions.map((provider) => {
+                const active = selectedProvider === provider.id;
+
+                return (
+                  <button
+                    className={cn(
+                      "h-7 shrink-0 rounded-full px-3 text-xs font-medium text-neutral-500 transition hover:bg-white hover:text-neutral-950",
+                      active && "bg-white text-neutral-950 shadow-sm ring-1 ring-black/5",
+                    )}
+                    disabled={isGenerating}
+                    key={provider.id}
+                    onClick={() => setSelectedProvider(provider.id)}
+                    type="button"
+                  >
+                    {provider.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="px-2 text-xs font-medium text-neutral-500">
+              {getRunModeLabel(lastRunMode)}
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <MessageSquareText className="h-5 w-5 text-neutral-400" />
             <input
