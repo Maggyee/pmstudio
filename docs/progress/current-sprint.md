@@ -22,10 +22,11 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - PM Skills registry and PM workflow registry added under `lib/`.
 - Typed FinSight Product Pack added under `lib/product-pack.ts` and shared by `/api/generate` plus the `/app` workspace summary.
 - Prototype tab linkage now reads Product Pack `prototype.prdLinks`, `userFlow`, `screens`, OpenDesign prompt, and live artifact files.
+- PRD, Research, Competitor, Persona, and Roadmap tabs now read Product Pack data in the workspace.
 
 ## In Progress
 
-- Converting the remaining PRD, Research, Competitor, Persona, and Roadmap tabs into Product Pack-driven views.
+- Replacing remaining navigation, timeline, and action mock lists with workflow registry and Product Pack metadata.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

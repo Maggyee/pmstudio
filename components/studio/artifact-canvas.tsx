@@ -27,22 +27,28 @@ import { ResearchPreview } from "@/components/studio/research-preview";
 import { StudioPrototypePreview } from "@/components/studio/prototype-preview";
 import {
   artifactActions,
-  personas,
-  studioCompetitors,
-  studioRoadmap,
   studioTabs,
 } from "@/lib/mock-data";
-import type { ProductPack } from "@/lib/product-pack";
+import {
+  buildFinSightProductPack,
+  defaultFinSightIdea,
+  type ProductPack,
+} from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
-function CompetitorsPreview() {
+function CompetitorsPreview({ productPack }: { productPack?: ProductPack }) {
+  const competitors = productPack?.competitors ?? [];
+  const opportunitySummary =
+    productPack?.project.valueProposition ??
+    "金融数据终端强在数据深度，自动化投顾强在配置体验。FinSight 的机会在顾问工作流和客户解释层。";
+
   return (
     <div className="overflow-hidden rounded-[28px] border border-black/10 bg-white">
       <div className="grid lg:grid-cols-[280px_1fr]">
         <aside className="bg-neutral-950 p-6 text-white">
           <h2 className="text-xl font-semibold">竞品机会矩阵</h2>
           <p className="mt-3 text-sm leading-7 text-white/65">
-            金融数据终端强在数据深度，自动化投顾强在配置体验。FinSight 的机会在顾问工作流和客户解释层。
+            {opportunitySummary}
           </p>
           <div className="mt-6 grid grid-cols-2 gap-2 text-xs">
             <span className="rounded-full bg-white/10 px-3 py-2">数据深度</span>
@@ -63,7 +69,7 @@ function CompetitorsPreview() {
               </tr>
             </thead>
             <tbody>
-              {studioCompetitors.map((item) => (
+              {competitors.map((item) => (
                 <tr className="bg-neutral-50 text-neutral-700 shadow-sm" key={item.competitor}>
                   <td className="rounded-l-2xl border-y border-l border-black/10 px-4 py-4 font-semibold text-neutral-950">
                     {item.competitor}
@@ -84,7 +90,9 @@ function CompetitorsPreview() {
   );
 }
 
-function PersonasPreview() {
+function PersonasPreview({ productPack }: { productPack?: ProductPack }) {
+  const personas = productPack?.personas ?? [];
+
   return (
     <div className="rounded-[28px] border border-black/10 bg-white p-5">
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -93,7 +101,7 @@ function PersonasPreview() {
           <p className="mt-1 text-sm text-neutral-500">从会前准备到会后跟进，覆盖财富管理团队的核心协作角色。</p>
         </div>
         <span className="rounded-full border border-black/10 bg-neutral-50 px-3 py-1 text-xs text-neutral-500">
-          3 个核心角色
+          {personas.length} 个核心角色
         </span>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
@@ -123,15 +131,17 @@ function PersonasPreview() {
   );
 }
 
-function RoadmapPreview() {
+function RoadmapPreview({ productPack }: { productPack?: ProductPack }) {
+  const roadmap = productPack?.roadmap ?? [];
+
   return (
     <div className="rounded-[28px] border border-black/10 bg-white p-6">
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-neutral-950">产品路线图</h2>
-        <p className="mt-2 text-sm text-neutral-500">围绕顾问工作流，从可用的会前准备工具推进到机构级投研协作系统。</p>
+        <p className="mt-2 text-sm text-neutral-500">{productPack?.summary.headline}</p>
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
-      {studioRoadmap.map((column) => (
+      {roadmap.map((column) => (
         <section className="relative border-t-2 border-neutral-950 pt-5" key={column.horizon}>
           <span className="absolute -top-[9px] left-0 h-4 w-4 rounded-full bg-neutral-950 ring-4 ring-white" />
           <div className="flex items-center justify-between">
@@ -176,7 +186,7 @@ function ArtifactView({
   productPack?: ProductPack;
 }) {
   if (activeTab === "PRD") {
-    return <PrdPreview />;
+    return <PrdPreview productPack={productPack} />;
   }
 
   if (activeTab === "原型") {
@@ -189,18 +199,18 @@ function ArtifactView({
   }
 
   if (activeTab === "调研") {
-    return <ResearchPreview />;
+    return <ResearchPreview productPack={productPack} />;
   }
 
   if (activeTab === "竞品") {
-    return <CompetitorsPreview />;
+    return <CompetitorsPreview productPack={productPack} />;
   }
 
   if (activeTab === "画像") {
-    return <PersonasPreview />;
+    return <PersonasPreview productPack={productPack} />;
   }
 
-  return <RoadmapPreview />;
+  return <RoadmapPreview productPack={productPack} />;
 }
 
 const artifactParamByTab: Record<(typeof studioTabs)[number], string> = {
@@ -248,7 +258,8 @@ export function ArtifactCanvas({
 }) {
   const activeTab = getTabFromArtifactParam(activeArtifact);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "预览">("生成");
-  const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
+  const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
+  const projectTitle = pack.project.title;
 
   return (
     <section className="min-h-screen bg-[#fbfaf7]/62">
@@ -336,7 +347,7 @@ export function ArtifactCanvas({
 
         <div className="mx-auto max-w-7xl">
           <div className="min-w-0 space-y-6">
-            {productPack ? <ProductPackSummary productPack={productPack} /> : null}
+            <ProductPackSummary productPack={pack} />
 
             <div className="mx-auto min-w-0 max-w-5xl overflow-hidden rounded-[24px] border border-black/10 bg-white/72 shadow-2xl shadow-black/10 backdrop-blur">
               <div className="flex items-center justify-between border-b border-neutral-200 bg-white/78 px-4 py-2 backdrop-blur">
@@ -352,7 +363,7 @@ export function ArtifactCanvas({
                 <ArtifactView
                   activeTab={activeTab}
                   activeViewport={activeViewport}
-                  productPack={productPack}
+                  productPack={pack}
                 />
               </div>
             </div>

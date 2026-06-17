@@ -1,8 +1,14 @@
 import { BarChart3, Lightbulb, TrendingUp } from "lucide-react";
 
-import { marketResearch, studioResearchCards, studioResearchInsights } from "@/lib/mock-data";
+import {
+  buildFinSightProductPack,
+  defaultFinSightIdea,
+  type ProductPack,
+} from "@/lib/product-pack";
 
-export function ResearchPreview() {
+export function ResearchPreview({ productPack }: { productPack?: ProductPack }) {
+  const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
+
   return (
     <div className="space-y-5">
       <section className="overflow-hidden rounded-[28px] border border-black/10 bg-white">
@@ -13,11 +19,11 @@ export function ResearchPreview() {
               市场规模
             </div>
             <p className="mt-4 text-sm leading-7 text-white/65">
-              以财富科技、投研工具和顾问效率软件作为上层市场，优先切入中小财富团队的日常客户服务场景。
+              {pack.research.marketOpportunity[0]?.detail}
             </p>
           </div>
           <div className="space-y-5 p-6">
-            {studioResearchCards.map((card, index) => (
+            {pack.research.marketOpportunity.map((card, index) => (
               <div className="grid gap-3 sm:grid-cols-[80px_1fr_150px] sm:items-center" key={card.label}>
                 <p className="text-sm font-semibold text-neutral-950">{card.label}</p>
                 <div className="h-3 overflow-hidden rounded-full bg-neutral-100">
@@ -43,14 +49,14 @@ export function ResearchPreview() {
             市场机会
           </div>
           <div className="mt-5 space-y-5">
-            {marketResearch.map((item, index) => (
+            {pack.research.marketOpportunity.map((item, index) => (
               <div className="grid grid-cols-[28px_1fr] gap-3" key={item.label}>
                 <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-neutral-950 text-xs font-semibold text-white">
                   {index + 1}
                 </span>
                 <div className="border-b border-black/10 pb-5">
                   <p className="text-sm font-semibold text-neutral-950">{item.label}</p>
-                  <p className="mt-2 text-sm leading-6 text-neutral-600">{item.value}</p>
+                  <p className="mt-2 text-sm leading-6 text-neutral-600">{item.detail}</p>
                 </div>
               </div>
             ))}
@@ -63,7 +69,7 @@ export function ResearchPreview() {
             关键洞察
           </div>
           <div className="mt-5 grid gap-3">
-            {studioResearchInsights.map((insight, index) => (
+            {pack.research.insights.map((insight, index) => (
               <blockquote className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm" key={insight}>
                 <p className="text-xs font-medium text-emerald-700">洞察 {index + 1}</p>
                 <p className="mt-2 text-sm leading-6 text-neutral-700">{insight}</p>
