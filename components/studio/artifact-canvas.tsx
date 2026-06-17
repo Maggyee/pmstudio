@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUp,
@@ -691,12 +691,14 @@ export function ArtifactCanvas({
   activeArtifact,
   activeViewport,
   agentEvents,
+  onProductPackChange,
   productPack,
   providerId = "mock",
 }: {
   activeArtifact?: string;
   activeViewport?: string;
   agentEvents?: HarnessEvent[];
+  onProductPackChange?: (productPack: ProductPack) => void;
   productPack?: ProductPack;
   providerId?: AgentProviderId;
 }) {
@@ -712,6 +714,7 @@ export function ArtifactCanvas({
   const [runHistory, setRunHistory] = useState<AgentRunHistoryItem[]>([]);
   const [prompt, setPrompt] = useState(currentPack.sourceIdea);
   const [runError, setRunError] = useState<string | null>(null);
+  const runInputRef = useRef<HTMLInputElement>(null);
   const projectTitle = currentPack.project.title;
   const artifactActions = getArtifactActions(activeTab, currentPack);
 
@@ -775,7 +778,8 @@ export function ArtifactCanvas({
 
   useEffect(() => {
     window.localStorage.setItem(localProductPackStorageKey, JSON.stringify(currentPack));
-  }, [currentPack]);
+    onProductPackChange?.(currentPack);
+  }, [currentPack, onProductPackChange]);
 
   useEffect(() => {
     if (currentEvents?.length) {
@@ -801,7 +805,7 @@ export function ArtifactCanvas({
     setActiveMode("预览");
   }
 
-  async function handleExportAction(action: ArtifactAction) {
+  const handleExportAction = useCallback(async (action: ArtifactAction) => {
     if (!action.artifactId || !action.format) return;
 
     const actionKey = `${action.artifactId}:${action.format}`;
@@ -845,7 +849,33 @@ export function ArtifactCanvas({
     } finally {
       setExportingAction(null);
     }
-  }
+  }, [currentPack]);
+
+  useEffect(() => {
+    function focusRunInput() {
+      setActiveMode("生成");
+      window.setTimeout(() => {
+        runInputRef.current?.focus();
+        runInputRef.current?.select();
+      }, 0);
+    }
+
+    function exportCurrentPack() {
+      void handleExportAction({
+        artifactId: "product-pack",
+        format: "markdown",
+        label: "导出 Markdown",
+      });
+    }
+
+    window.addEventListener("pmstudio:focus-run-input", focusRunInput);
+    window.addEventListener("pmstudio:export-current-pack", exportCurrentPack);
+
+    return () => {
+      window.removeEventListener("pmstudio:focus-run-input", focusRunInput);
+      window.removeEventListener("pmstudio:export-current-pack", exportCurrentPack);
+    };
+  }, [handleExportAction]);
 
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1091,6 +1121,7 @@ export function ArtifactCanvas({
           <div className="flex items-center gap-3">
             <MessageSquareText className="h-5 w-5 text-neutral-400" />
             <input
+              ref={runInputRef}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400"
               disabled={isGenerating}
               onChange={(event) => setPrompt(event.target.value)}

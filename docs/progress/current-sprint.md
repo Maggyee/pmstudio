@@ -44,6 +44,7 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Product Pack generation now supports arbitrary product ideas instead of only the FinSight demo; FinSight remains a preset/reference example.
 - Generic Product Pack output now infers target users, product shape, domain profile, market window, competitor categories, personas, and roadmap from the submitted idea.
 - Prototype preview now reads Product Pack title, value proposition, flow, screens, and artifact files instead of hard-coded FinSight copy.
+- Workspace shell now follows the current generated Product Pack, so top navigation, sidebar, export, and run controls operate on the active project instead of the initial preset.
 
 ## In Progress
 

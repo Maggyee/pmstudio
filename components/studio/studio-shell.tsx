@@ -201,7 +201,8 @@ export function StudioShell({
   agentEvents?: HarnessEvent[];
   productPack?: ProductPack;
 }) {
-  const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
+  const [shellProductPack, setShellProductPack] = useState(productPack);
+  const projectTitle = shellProductPack?.project.title ?? "FinSight 智能投研工作台";
   const workflowTitle = activeWorkflow?.title ?? "Idea-to-Product Pack";
   const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
   const [providers, setProviders] = useState<AgentProvider[]>(fallbackProviders);
@@ -265,6 +266,22 @@ export function StudioShell({
     };
   }, []);
 
+  async function handleShareWorkspace() {
+    try {
+      await window.navigator.clipboard.writeText(window.location.href);
+    } catch {
+      // Clipboard can be unavailable in some local browser contexts.
+    }
+  }
+
+  function handleExportCurrentPack() {
+    window.dispatchEvent(new CustomEvent("pmstudio:export-current-pack"));
+  }
+
+  function handleFocusRunInput() {
+    window.dispatchEvent(new CustomEvent("pmstudio:focus-run-input"));
+  }
+
   return (
     <main className="min-h-screen text-[#191919]">
       <header className="relative z-40 border-b border-black/8 bg-white/60 backdrop-blur-2xl">
@@ -314,6 +331,7 @@ export function StudioShell({
           <div className="flex items-center gap-2">
             <button
               className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+              onClick={handleShareWorkspace}
               type="button"
             >
               <Share2 className="h-4 w-4" />
@@ -321,6 +339,7 @@ export function StudioShell({
             </button>
             <button
               className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+              onClick={handleExportCurrentPack}
               type="button"
             >
               <Download className="h-4 w-4" />
@@ -328,6 +347,7 @@ export function StudioShell({
             </button>
             <button
               className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-neutral-950 px-4 text-sm font-medium text-white shadow-lg shadow-neutral-900/20 transition hover:-translate-y-0.5 hover:bg-black hover:shadow-xl hover:shadow-neutral-900/25"
+              onClick={handleFocusRunInput}
               type="button"
             >
               <Play className="h-4 w-4" />
@@ -340,7 +360,7 @@ export function StudioShell({
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="hidden border-r border-[#eeeeee] bg-white/72 lg:block">
           <div className="sticky top-0 h-screen overflow-y-auto">
-            <StudioSidebar activeWorkflow={activeWorkflow} productPack={productPack} />
+            <StudioSidebar activeWorkflow={activeWorkflow} productPack={shellProductPack} />
           </div>
         </aside>
 
@@ -355,7 +375,8 @@ export function StudioShell({
             activeArtifact={activeArtifact}
             activeViewport={activeViewport}
             agentEvents={agentEvents}
-            productPack={productPack}
+            onProductPackChange={setShellProductPack}
+            productPack={shellProductPack}
             providerId={selectedProvider}
           />
         </section>
