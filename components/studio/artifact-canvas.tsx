@@ -618,24 +618,6 @@ function getWorkflowIdForTab(tab: (typeof studioTabs)[number]): WorkflowId {
   return "idea-to-product-pack";
 }
 
-const providerOptions: Array<{
-  id: AgentProviderId;
-  label: string;
-}> = [
-  {
-    id: "mock",
-    label: "Mock",
-  },
-  {
-    id: "codex",
-    label: "Codex",
-  },
-  {
-    id: "claude-code",
-    label: "Claude",
-  },
-];
-
 function getRunModeLabel(mode?: AgentRunMode) {
   const labels: Record<AgentRunMode, string> = {
     "api-fallback-dry-run": "API dry-run",
@@ -648,16 +630,29 @@ function getRunModeLabel(mode?: AgentRunMode) {
   return mode ? labels[mode] : "Mock provider";
 }
 
+function getProviderLabel(providerId: AgentProviderId) {
+  const labels: Record<AgentProviderId, string> = {
+    "api-fallback": "API fallback",
+    "claude-code": "Claude Code",
+    codex: "Codex",
+    mock: "Mock",
+  };
+
+  return labels[providerId];
+}
+
 export function ArtifactCanvas({
   activeArtifact,
   activeViewport,
   agentEvents,
   productPack,
+  providerId = "mock",
 }: {
   activeArtifact?: string;
   activeViewport?: string;
   agentEvents?: HarnessEvent[];
   productPack?: ProductPack;
+  providerId?: AgentProviderId;
 }) {
   const activeTab = getTabFromArtifactParam(activeArtifact);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "预览">("生成");
@@ -667,7 +662,6 @@ export function ArtifactCanvas({
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportingAction, setExportingAction] = useState<string | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
   const [lastRunMode, setLastRunMode] = useState<AgentRunMode>("mock");
   const [prompt, setPrompt] = useState(currentPack.sourceIdea);
   const [runError, setRunError] = useState<string | null>(null);
@@ -794,7 +788,7 @@ export function ArtifactCanvas({
       const response = await fetch("/api/generate", {
         body: JSON.stringify({
           input,
-          providerId: selectedProvider,
+          providerId,
           workflowId: getWorkflowIdForTab(activeTab),
         }),
         headers: {
@@ -986,27 +980,10 @@ export function ArtifactCanvas({
           className="liquid-glass sticky bottom-5 z-30 mx-auto mt-10 max-w-2xl rounded-[22px] p-3"
           onSubmit={handleGenerate}
         >
-          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-black/8 bg-white/45 p-1">
-              {providerOptions.map((provider) => {
-                const active = selectedProvider === provider.id;
-
-                return (
-                  <button
-                    className={cn(
-                      "h-7 shrink-0 rounded-full px-3 text-xs font-medium text-neutral-500 transition hover:bg-white hover:text-neutral-950",
-                      active && "bg-white text-neutral-950 shadow-sm ring-1 ring-black/5",
-                    )}
-                    disabled={isGenerating}
-                    key={provider.id}
-                    onClick={() => setSelectedProvider(provider.id)}
-                    type="button"
-                  >
-                    {provider.label}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="truncate px-2 text-xs font-medium text-neutral-500">
+              智能体：{getProviderLabel(providerId)}
+            </span>
             <span className="px-2 text-xs font-medium text-neutral-500">
               {getRunModeLabel(lastRunMode)}
             </span>

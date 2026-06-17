@@ -1,4 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import {
+  Bot,
   ChevronDown,
   Download,
   FileText,
@@ -12,8 +16,34 @@ import Image from "next/image";
 import { ArtifactCanvas } from "@/components/studio/artifact-canvas";
 import { StudioSidebar } from "@/components/studio/sidebar";
 import { studioDesignSystems } from "@/lib/mock-data";
-import type { HarnessEvent, HarnessWorkflow } from "@/lib/agent-harness";
+import type {
+  AgentProviderId,
+  HarnessEvent,
+  HarnessWorkflow,
+} from "@/lib/agent-harness";
 import type { ProductPack } from "@/lib/product-pack";
+
+const providerOptions: Array<{
+  label: string;
+  value: AgentProviderId;
+}> = [
+  {
+    label: "Mock",
+    value: "mock",
+  },
+  {
+    label: "Codex",
+    value: "codex",
+  },
+  {
+    label: "Claude Code",
+    value: "claude-code",
+  },
+  {
+    label: "API fallback",
+    value: "api-fallback",
+  },
+];
 
 function TopbarPicker({
   label,
@@ -43,6 +73,49 @@ function TopbarPicker({
   );
 }
 
+function TopbarSelect({
+  label,
+  value,
+  icon,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  options: Array<{ label: string; value: string }>;
+  onChange: (value: string) => void;
+}) {
+  const activeOption = options.find((option) => option.value === value);
+
+  return (
+    <label className="group relative inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/8 bg-white/60 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white hover:shadow-md">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition group-hover:bg-neutral-950 group-hover:text-white">
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[10px] leading-none text-neutral-400">{label}</span>
+        <span className="mt-0.5 block max-w-[118px] truncate font-medium text-neutral-800 xl:max-w-[150px]">
+          {activeOption?.label ?? value}
+        </span>
+      </span>
+      <select
+        aria-label={label}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-hover:text-neutral-600" />
+    </label>
+  );
+}
+
 export function StudioShell({
   activeArtifact,
   activeViewport,
@@ -58,6 +131,7 @@ export function StudioShell({
 }) {
   const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
   const workflowTitle = activeWorkflow?.title ?? "Idea-to-Product Pack";
+  const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
 
   return (
     <main className="min-h-screen text-[#191919]">
@@ -95,6 +169,13 @@ export function StudioShell({
               icon={<GalleryVerticalEnd className="h-3.5 w-3.5" />}
               label="工作流"
               value={workflowTitle}
+            />
+            <TopbarSelect
+              icon={<Bot className="h-3.5 w-3.5" />}
+              label="智能体"
+              onChange={(value) => setSelectedProvider(value as AgentProviderId)}
+              options={providerOptions}
+              value={selectedProvider}
             />
           </div>
 
@@ -143,6 +224,7 @@ export function StudioShell({
             activeViewport={activeViewport}
             agentEvents={agentEvents}
             productPack={productPack}
+            providerId={selectedProvider}
           />
         </section>
       </div>

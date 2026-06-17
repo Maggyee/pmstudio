@@ -34,7 +34,7 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Edit mode now updates PRD fields, prototype flow, OpenDesign prompt, screen goals, summary bullets, and next actions directly in the current Product Pack.
 - Export buttons now POST the current Product Pack to `/api/export`, so locally edited artifacts can be downloaded.
 - `/api/generate` now accepts `providerId` and returns adapter metadata with run id and run mode.
-- Workspace generation controls now let the user choose Mock, Codex, or Claude provider mode.
+- Workspace topbar now follows OpenDesign's AgentPicker placement for provider selection: Mock, Codex, Claude Code, and API fallback are run-context choices instead of bottom-input controls.
 - Codex adapter dry-run now builds the OpenDesign/PM Skills-informed prompt and can optionally attempt local `codex exec` only when `PMSTUDIO_ENABLE_LOCAL_AGENT=1`.
 
 ## In Progress
