@@ -21,10 +21,11 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Dual-reference harness added: OpenDesign for studio/artifact/prototype interaction, PM Skills for PM workflow and artifact structure.
 - PM Skills registry and PM workflow registry added under `lib/`.
 - Typed FinSight Product Pack added under `lib/product-pack.ts` and shared by `/api/generate` plus the `/app` workspace summary.
+- Prototype tab linkage now reads Product Pack `prototype.prdLinks`, `userFlow`, `screens`, OpenDesign prompt, and live artifact files.
 
 ## In Progress
 
-- Converting the remaining static artifact tabs into Product Pack-driven views, starting with PRD-to-prototype linkage.
+- Converting the remaining PRD, Research, Competitor, Persona, and Roadmap tabs into Product Pack-driven views.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred

@@ -169,9 +169,11 @@ function ActionIcon({ action }: { action: string }) {
 function ArtifactView({
   activeTab,
   activeViewport,
+  productPack,
 }: {
   activeTab: (typeof studioTabs)[number];
   activeViewport?: string;
+  productPack?: ProductPack;
 }) {
   if (activeTab === "PRD") {
     return <PrdPreview />;
@@ -180,8 +182,8 @@ function ArtifactView({
   if (activeTab === "原型") {
     return (
       <div className="space-y-5">
-        <StudioPrototypePreview activeViewport={activeViewport} />
-        <PrdPrototypeMap />
+        <StudioPrototypePreview activeViewport={activeViewport} productPack={productPack} />
+        <PrdPrototypeMap productPack={productPack} />
       </div>
     );
   }
@@ -347,7 +349,11 @@ export function ArtifactCanvas({
                 </div>
               </div>
               <div key={activeTab} className="min-w-0 bg-white/72 p-3 sm:p-6">
-                <ArtifactView activeTab={activeTab} activeViewport={activeViewport} />
+                <ArtifactView
+                  activeTab={activeTab}
+                  activeViewport={activeViewport}
+                  productPack={productPack}
+                />
               </div>
             </div>
 

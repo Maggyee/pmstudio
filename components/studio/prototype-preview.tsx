@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { prototypeHighlights } from "@/lib/mock-data";
+import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
 const viewports = [
@@ -26,11 +27,26 @@ function getViewportFromParam(viewport?: string) {
   return viewports.find((item) => item.param === viewport) ?? viewports[0];
 }
 
-export function StudioPrototypePreview({ activeViewport }: { activeViewport?: string }) {
+export function StudioPrototypePreview({
+  activeViewport,
+  productPack,
+}: {
+  activeViewport?: string;
+  productPack?: ProductPack;
+}) {
   const [briefGenerated, setBriefGenerated] = useState(false);
   const selectedViewport = getViewportFromParam(activeViewport);
   const isMobile = selectedViewport.param === "mobile";
   const isTablet = selectedViewport.param === "tablet";
+  const prototypeTitle = productPack?.prototype.liveArtifact.title ?? "金融投研工作台变体 A";
+  const deliveryFiles = productPack?.prototype.liveArtifact.files.map((file) => file.path) ?? [
+    "市场简报.pdf",
+    "配置建议.md",
+    "风险提示.txt",
+    "跟进任务.csv",
+  ];
+  const highlights =
+    productPack?.prototype.screens.slice(0, 4).map((screen) => screen.name) ?? prototypeHighlights;
 
   return (
     <div className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
@@ -38,7 +54,7 @@ export function StudioPrototypePreview({ activeViewport }: { activeViewport?: st
         <div className="min-w-0">
           <p className="text-xs font-medium text-neutral-500">原型交付物</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-neutral-950">金融投研工作台变体 A</h2>
+            <h2 className="text-lg font-semibold text-neutral-950">{prototypeTitle}</h2>
             <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-500">
               {selectedViewport.label} · {selectedViewport.size}
             </span>
@@ -180,21 +196,19 @@ export function StudioPrototypePreview({ activeViewport }: { activeViewport?: st
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-sm font-semibold">顾问交付物</p>
                     <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-                      5 份文件
+                      {deliveryFiles.length} 份文件
                     </span>
                   </div>
                   <div className="space-y-2">
-                    {["市场简报.pdf", "配置建议.md", "风险提示.txt", "跟进任务.csv"].map(
-                      (item) => (
-                        <div
-                          className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm"
-                          key={item}
-                        >
-                          <span>{item}</span>
-                          <Check className="h-4 w-4 text-emerald-600" />
-                        </div>
-                      ),
-                    )}
+                    {deliveryFiles.map((item) => (
+                      <div
+                        className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-3 text-sm"
+                        key={item}
+                      >
+                        <span>{item}</span>
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      </div>
+                    ))}
                   </div>
                 </div>
               </section>
@@ -205,7 +219,7 @@ export function StudioPrototypePreview({ activeViewport }: { activeViewport?: st
                   isMobile ? "grid-cols-1" : "sm:grid-cols-2 xl:grid-cols-4",
                 )}
               >
-                {prototypeHighlights.map((item) => (
+                {highlights.map((item) => (
                   <div className="rounded-lg border border-zinc-200 bg-white p-3" key={item}>
                     <Check className="mb-2 h-4 w-4 text-emerald-600" />
                     <p className="text-sm font-medium text-zinc-800">{item}</p>

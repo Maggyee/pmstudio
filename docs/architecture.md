@@ -16,7 +16,7 @@ PM Agent Studio combines two reference systems into one PM-focused AI workspace:
 | Product Pack data | `lib/product-pack.ts` | typed FinSight demo pack shared by API and workspace UI |
 | Harness contract | `lib/agent-harness.ts` | providers, capabilities, workflows, events, generated artifacts, Product Pack output |
 | API surface | `app/api/harness/route.ts`, `app/api/generate/route.ts` | workflow discovery and deterministic mock generation |
-| Studio UI | `app/app`, `components/studio/*` | OpenDesign-inspired workspace, Product Pack summary, and artifact canvas |
+| Studio UI | `app/app`, `components/studio/*` | OpenDesign-inspired workspace, Product Pack summary, artifact canvas, and PRD-to-prototype linked view |
 
 ## MVP Runtime
 
@@ -30,6 +30,6 @@ No real AI provider, subprocess manager, authentication, database, payment, or e
 
 ## Next Integration Steps
 
-1. Add PRD-to-Prototype linked view data from the Product Pack instead of static component data.
+1. Convert the remaining PRD, Research, Competitor, Persona, and Roadmap tabs from static mock data to Product Pack data.
 2. Add Codex / Claude Code provider detection behind the current adapter contract.
 3. Add export actions for Markdown, HTML, PDF, and PPTX after the artifact model is stable.
