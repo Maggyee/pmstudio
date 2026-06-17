@@ -642,9 +642,27 @@ function getArtifactActions(tab: (typeof studioTabs)[number], productPack: Produ
 
 function getWorkflowIdForTab(tab: (typeof studioTabs)[number]): WorkflowId {
   if (tab === "原型") return "prd-to-prototype-linker";
+  if (tab === "总结") return "project-summarizer";
 
   return "idea-to-product-pack";
 }
+
+const demoPromptPresets = [
+  {
+    label: "完整方案",
+    prompt: defaultFinSightIdea,
+  },
+  {
+    label: "原型联动",
+    prompt:
+      "基于 FinSight 的 PRD，提取核心功能、用户路径和页面需求，生成可预览的财富顾问工作台原型结构。",
+  },
+  {
+    label: "汇报摘要",
+    prompt:
+      "把 FinSight 的产品定位、PRD、原型、市场机会、竞品方向和路线图整理成 AI 提效比赛的项目汇报摘要。",
+  },
+];
 
 function getRunModeLabel(mode?: AgentRunMode) {
   const labels: Record<AgentRunMode, string> = {
@@ -1056,6 +1074,19 @@ export function ArtifactCanvas({
             <span className="px-2 text-xs font-medium text-neutral-500">
               {getRunModeLabel(lastRunMode)}
             </span>
+          </div>
+          <div className="mb-2 flex gap-1 overflow-x-auto px-8">
+            {demoPromptPresets.map((preset) => (
+              <button
+                className="h-7 shrink-0 rounded-full border border-black/8 bg-white/55 px-3 text-xs font-medium text-neutral-500 transition hover:bg-white hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isGenerating}
+                key={preset.label}
+                onClick={() => setPrompt(preset.prompt)}
+                type="button"
+              >
+                {preset.label}
+              </button>
+            ))}
           </div>
           <div className="flex items-center gap-3">
             <MessageSquareText className="h-5 w-5 text-neutral-400" />

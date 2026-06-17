@@ -39,6 +39,8 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Codex adapter dry-run now builds the OpenDesign/PM Skills-informed prompt and can optionally attempt local `codex exec` only when `PMSTUDIO_ENABLE_LOCAL_AGENT=1`.
 - Workspace now keeps a browser-local run history with provider, run mode, workflow, input idea, project title, and run id, shown in the Agent panel.
 - Project executive summary is now a first-class workspace tab with preview and export actions mapped to `executive-summary`.
+- Bottom run input now includes FinSight demo prompt presets for full pack generation, PRD-to-prototype linkage, and project summary.
+- Summary tab generation now maps to the `project-summarizer` workflow.
 
 ## In Progress
 
