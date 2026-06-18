@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
 import pptxgen from "pptxgenjs";
 
+import { renderArtifactMarkdown } from "@/lib/pm-documents";
 import type { ProductPack, ProductPackArtifactIndexItem } from "@/lib/product-pack";
 
 export type ExportFormat = ProductPackArtifactIndexItem["exportFormats"][number];
@@ -58,10 +59,6 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "") || "product-pack";
 }
 
-function list(items: string[]) {
-  return items.map((item) => `- ${item}`).join("\n");
-}
-
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -71,155 +68,8 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
-function renderPrdMarkdown(pack: ProductPack) {
-  return [
-    `# ${pack.project.title} PRD`,
-    "",
-    `## Product One-Liner`,
-    "",
-    pack.project.oneLiner,
-    "",
-    "## Objective",
-    "",
-    pack.prd.objective,
-    "",
-    "## Sections",
-    "",
-    pack.prd.sections.map((section) => `### ${section.label}\n\n${section.value}`).join("\n\n"),
-    "",
-    "## Core Features",
-    "",
-    list(pack.prd.coreFeatures),
-    "",
-    "## User Stories",
-    "",
-    list(pack.prd.userStories),
-    "",
-    "## Assumptions",
-    "",
-    list(pack.prd.assumptions),
-    "",
-    "## Success Metrics",
-    "",
-    list(pack.prd.successMetrics),
-    "",
-    "## MVP Scope",
-    "",
-    list(pack.prd.mvpScope),
-  ].join("\n");
-}
-
-function renderResearchMarkdown(pack: ProductPack) {
-  return [
-    `# ${pack.project.title} Market Research`,
-    "",
-    "## Market Opportunity",
-    "",
-    pack.research.marketOpportunity
-      .map((item) => `### ${item.label}: ${item.value}\n\n${item.detail}`)
-      .join("\n\n"),
-    "",
-    "## Insights",
-    "",
-    list(pack.research.insights),
-  ].join("\n");
-}
-
-function renderCompetitorsMarkdown(pack: ProductPack) {
-  return [
-    `# ${pack.project.title} Competitor Analysis`,
-    "",
-    "| Competitor | Positioning | Strength | Weakness | Opportunity |",
-    "| --- | --- | --- | --- | --- |",
-    ...pack.competitors.map(
-      (item) =>
-        `| ${item.competitor} | ${item.positioning} | ${item.strength} | ${item.weakness} | ${item.opportunity} |`,
-    ),
-  ].join("\n");
-}
-
-function renderPersonasMarkdown(pack: ProductPack) {
-  return [
-    `# ${pack.project.title} Personas`,
-    "",
-    ...pack.personas.map((persona) =>
-      [
-        `## ${persona.name}`,
-        "",
-        `- Role: ${persona.role}`,
-        `- Goal: ${persona.goal}`,
-        `- Pain: ${persona.pain}`,
-      ].join("\n"),
-    ),
-  ].join("\n\n");
-}
-
-function renderRoadmapMarkdown(pack: ProductPack) {
-  return [
-    `# ${pack.project.title} Roadmap`,
-    "",
-    ...pack.roadmap.map((column) => [`## ${column.horizon}`, "", list(column.items)].join("\n")),
-  ].join("\n\n");
-}
-
-function renderSummaryMarkdown(pack: ProductPack) {
-  return [
-    `# ${pack.project.title} Executive Summary`,
-    "",
-    pack.summary.headline,
-    "",
-    "## Key Points",
-    "",
-    list(pack.summary.bullets),
-    "",
-    "## Next Actions",
-    "",
-    list(pack.summary.nextActions),
-  ].join("\n");
-}
-
-function renderProductPackMarkdown(pack: ProductPack) {
-  return [
-    `# ${pack.project.title} Product Pack`,
-    "",
-    pack.project.positioning,
-    "",
-    "## Target Users",
-    "",
-    list(pack.project.targetUsers),
-    "",
-    "## Pain Points",
-    "",
-    list(pack.project.painPoints),
-    "",
-    "## Value Proposition",
-    "",
-    pack.project.valueProposition,
-    "",
-    renderPrdMarkdown(pack),
-    "",
-    renderResearchMarkdown(pack),
-    "",
-    renderCompetitorsMarkdown(pack),
-    "",
-    renderRoadmapMarkdown(pack),
-    "",
-    renderSummaryMarkdown(pack),
-  ].join("\n");
-}
-
 function renderMarkdown(artifactId: string, pack: ProductPack) {
-  const renderers: Record<string, (pack: ProductPack) => string> = {
-    competitors: renderCompetitorsMarkdown,
-    "executive-summary": renderSummaryMarkdown,
-    personas: renderPersonasMarkdown,
-    prd: renderPrdMarkdown,
-    "product-pack": renderProductPackMarkdown,
-    research: renderResearchMarkdown,
-    roadmap: renderRoadmapMarkdown,
-  };
-
-  return renderers[artifactId]?.(pack) ?? renderProductPackMarkdown(pack);
+  return renderArtifactMarkdown(artifactId, pack);
 }
 
 function renderPrototypeHtml(pack: ProductPack) {

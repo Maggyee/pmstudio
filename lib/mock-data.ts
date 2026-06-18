@@ -229,13 +229,13 @@ export const studioProjects = [
 
 export const studioWorkflows = [
   "完整产品方案包",
-  "需求分析 Agent",
-  "PRD Agent",
-  "竞品分析 Agent",
-  "市场调研 Agent",
-  "原型设计 Agent",
-  "价值评估 Agent",
-  "汇报材料 Agent",
+  "机会梳理",
+  "PRD 文档",
+  "竞品分析",
+  "市场机会研究",
+  "原型映射",
+  "价值评估",
+  "汇报材料",
 ];
 
 export const studioDesignSystems = [
@@ -254,43 +254,43 @@ export const studioTemplates = [
 
 export const pmAgents = [
   {
-    name: "需求分析 Agent",
+    name: "机会梳理",
     responsibility: "拆解目标用户、场景、痛点和产品假设",
     output: "问题定义",
     status: "已完成",
   },
   {
-    name: "PRD Agent",
+    name: "PRD 文档",
     responsibility: "生成目标、范围、用户故事和验收标准",
     output: "PRD 要点",
     status: "已完成",
   },
   {
-    name: "竞品分析 Agent",
+    name: "竞品分析",
     responsibility: "对比定位、功能、定价和差异化机会",
     output: "竞品矩阵",
     status: "运行中",
   },
   {
-    name: "市场调研 Agent",
+    name: "市场机会研究",
     responsibility: "估算市场规模、趋势窗口和进入策略",
     output: "市场洞察",
     status: "排队中",
   },
   {
-    name: "原型设计 Agent",
+    name: "原型映射",
     responsibility: "把 PRD 要点映射成页面结构和交互草图",
     output: "高保真原型",
     status: "排队中",
   },
   {
-    name: "价值评估 Agent",
+    name: "价值评估",
     responsibility: "评估商业价值、风险、优先级和验证成本",
     output: "价值评分",
     status: "排队中",
   },
   {
-    name: "汇报材料 Agent",
+    name: "汇报材料",
     responsibility: "整理路演摘要、路线图和管理层汇报材料",
     output: "汇报包",
     status: "排队中",
@@ -315,12 +315,12 @@ export const workflowChecklist = [
 ];
 
 export const studioTimeline = [
-  "需求分析 Agent 建模场景",
-  "PRD Agent 起草范围",
-  "原型设计 Agent 映射界面",
-  "竞品分析 Agent 对比市场",
-  "市场调研 Agent 估算机会",
-  "汇报材料 Agent 打包交付物",
+  "机会梳理建模场景",
+  "PRD 文档起草范围",
+  "原型映射界面",
+  "竞品分析对比市场",
+  "市场机会研究估算机会",
+  "汇报材料打包交付物",
 ];
 
 export const studioTabs = [

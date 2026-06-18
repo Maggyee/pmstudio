@@ -13,10 +13,13 @@ import {
   type HarnessEvent,
   type WorkflowId,
 } from "@/lib/agent-harness";
+import type { WorkflowDefinition } from "@/lib/workflow-harness";
+import { summarizeWorkflowDefinition } from "@/lib/workflow-harness";
 
 export type AgentWorkflowRunRequest = {
   providerId?: AgentProviderId;
   workflowId: WorkflowId;
+  workflowDefinition?: WorkflowDefinition;
   input: string;
 };
 
@@ -33,6 +36,17 @@ function buildPrompt(pack: GeneratedPack) {
     .map((artifact) => `- ${artifact.title}: ${artifact.description}`)
     .join("\n");
   const actions = pack.workflow.userFacingActions.map((action) => `- ${action}`).join("\n");
+  const workflowSteps = pack.workflowDefinition?.steps
+    .filter((step) => step.enabled)
+    .map((step, index) => {
+      const skills = step.skillIds.length ? ` skills=${step.skillIds.join(", ")}` : "";
+      const outputs = step.outputArtifactIds.length
+        ? ` outputs=${step.outputArtifactIds.join(", ")}`
+        : "";
+
+      return `${index + 1}. ${step.title} (${step.kind}) - ${step.description}${skills}${outputs}`;
+    })
+    .join("\n");
 
   return [
     "You are the PM Studio agent runner.",
@@ -50,6 +64,10 @@ function buildPrompt(pack: GeneratedPack) {
     "",
     `Workflow: ${pack.workflow.title}`,
     pack.workflow.description,
+    "",
+    "Workflow orchestration:",
+    summarizeWorkflowDefinition(pack.workflowDefinition),
+    workflowSteps ? workflowSteps : "No custom step definition supplied.",
     "",
     "User-facing PM actions:",
     actions,
@@ -199,6 +217,7 @@ async function runClaudeCodeCli(prompt: string, runId: string) {
 
 export async function runAgentWorkflow({
   providerId = "mock",
+  workflowDefinition,
   workflowId,
   input,
 }: AgentWorkflowRunRequest): Promise<GeneratedPack> {
@@ -208,6 +227,7 @@ export async function runAgentWorkflow({
   const pack = generateMockPack({
     workflowId,
     input: normalizedInput,
+    workflowDefinition,
   });
   const prompt = buildPrompt(pack);
 

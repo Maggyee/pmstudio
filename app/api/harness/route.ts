@@ -4,6 +4,7 @@ import {
 } from "@/lib/agent-harness";
 import { getPublicPMWorkflows } from "@/lib/pm-workflows";
 import { detectAgentProviders } from "@/lib/provider-detection";
+import { presetWorkflowDefinitions, workflowNodeTypes } from "@/lib/workflow-harness";
 
 export async function GET() {
   const providers = await detectAgentProviders();
@@ -13,6 +14,8 @@ export async function GET() {
     referenceArchitecture: harnessReferenceSources,
     providers,
     workflows: harnessWorkflows,
+    workflowDefinitions: presetWorkflowDefinitions,
+    workflowNodeTypes,
     workflowRegistry: getPublicPMWorkflows(),
   });
 }

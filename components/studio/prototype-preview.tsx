@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
-  ArrowRight,
+  Braces,
   Check,
   Code2,
+  ChevronDown,
+  Download,
+  ExternalLink,
+  Eye,
+  Maximize2,
   Monitor,
-  PanelTop,
+  Minimize2,
+  Pencil,
   RefreshCw,
   Smartphone,
   Tablet,
@@ -17,21 +22,30 @@ import {
   Plus,
   Trash2,
   Sparkles,
+  X,
 } from "lucide-react";
 
 import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
 const viewports = [
-  { label: "桌面", param: "desktop", icon: Monitor, width: 1200, height: 720, size: "1200px" },
-  { label: "平板", param: "tablet", icon: Tablet, width: 820, height: 1180, size: "820px" },
-  { label: "手机", param: "mobile", icon: Smartphone, width: 390, height: 844, size: "390px" },
+  { label: "桌面端", param: "desktop", icon: Monitor, width: 1200, height: 860, size: "1200×860" },
+  { label: "平板端", param: "tablet", icon: Tablet, width: 820, height: 1180, size: "820×1180" },
+  { label: "移动端", param: "mobile", icon: Smartphone, width: 390, height: 844, size: "390×844" },
 ];
 
+const zoomLevels = [50, 75, 100, 125, 150, 200];
 const previewChromeHeight = 40;
 
 function getViewportFromParam(viewport?: string) {
   return viewports.find((item) => item.param === viewport) ?? viewports[0];
+}
+
+function getResponsiveViewportParam(canvasWidth: number) {
+  if (canvasWidth < 520) return "mobile";
+  if (canvasWidth < 920) return "tablet";
+
+  return "desktop";
 }
 
 function getPreviewDomain(productPack?: ProductPack) {
@@ -60,6 +74,15 @@ interface SelectedElement {
     border?: string;
     boxShadow?: string;
   };
+}
+
+type PreviewCanvasSize = {
+  width: number;
+  height: number;
+};
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(value, max));
 }
 
 function escapeHtml(value: string) {
@@ -93,42 +116,129 @@ export function generateSandboxHtml(pack: ProductPack, isEditing: boolean) {
       const componentItems = screen.components
         .map((item, cIdx) => {
           const compId = `screen-${sIdx}-comp-${cIdx}`;
-          return `<li data-od-id="${compId}" ${getStyleString(
+          return `<span class="component-chip" data-od-id="${compId}" ${getStyleString(
             compId,
-            "margin-bottom: 6px; color: #4b5563;",
-          )}>${escapeHtml(item)}</li>`;
+            "",
+          )}>${escapeHtml(item)}</span>`;
         })
         .join("");
 
       return `
-        <article class="screen-card" data-od-id="${screenId}" ${getStyleString(
+        <section class="screen-panel" data-od-id="${screenId}" ${getStyleString(
           screenId,
-          "border: 1px solid rgba(17,24,39,.10); border-radius: 18px; background: #fff; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);",
+          "",
         )}>
-          <h2 data-od-id="${nameId}" ${getStyleString(
+          <div class="screen-index">${String(sIdx + 1).padStart(2, "0")}</div>
+          <div class="screen-content">
+            <h2 data-od-id="${nameId}" ${getStyleString(
             nameId,
-            "margin: 0; font-size: 18px; font-weight: 600;",
+            "",
           )}>${escapeHtml(screen.name)}</h2>
-          <p data-od-id="${goalId}" ${getStyleString(
+            <p data-od-id="${goalId}" ${getStyleString(
             goalId,
-            "color: #4b5563; line-height: 1.6; margin-top: 8px; margin-bottom: 12px; font-size: 14px;",
+            "",
           )}>${escapeHtml(screen.goal)}</p>
-          <strong data-od-id="${actionId}" ${getStyleString(
+            <div class="component-grid">${componentItems}</div>
+          </div>
+          <button type="button" class="prototype-action" data-action-button="true" data-label="${escapeHtml(
+            screen.primaryAction,
+          )}" data-od-id="${actionId}" ${getStyleString(
             actionId,
-            "color: #047857; font-size: 13px; font-weight: 700; text-transform: uppercase;",
-          )}>${escapeHtml(screen.primaryAction)}</strong>
-          <ul style="margin-top: 12px; padding-left: 20px; font-size: 13px; color: #4b5563;">${componentItems}</ul>
-        </article>`;
+            "",
+          )}>${escapeHtml(screen.primaryAction)}</button>
+        </section>`;
     })
     .join("");
 
+  const navItems = pack.prototype.screens
+    .map(
+      (screen, index) => `
+        <button type="button" class="nav-item ${index === 0 ? "active" : ""}">
+          <span>${String(index + 1).padStart(2, "0")}</span>
+          ${escapeHtml(screen.name)}
+        </button>`,
+    )
+    .join("");
+  const prdLinks = pack.prototype.prdLinks
+    .map(
+      (link) => `
+        <article class="trace-row">
+          <p>${escapeHtml(link.requirement)}</p>
+          <strong>${escapeHtml(link.screen)}</strong>
+          <span>${escapeHtml(link.rationale)}</span>
+        </article>`,
+    )
+    .join("");
+  const metrics = pack.prd.successMetrics
+    .map(
+      (metric, index) => `
+        <div class="metric-card">
+          <span>KR ${index + 1}</span>
+          <strong>${escapeHtml(metric)}</strong>
+        </div>`,
+    )
+    .join("");
+  const opportunities = pack.research.marketOpportunity
+    .map(
+      (item) => `
+        <div class="insight-row">
+          <span>${escapeHtml(item.label)}</span>
+          <strong>${escapeHtml(item.value)}</strong>
+          <p>${escapeHtml(item.detail)}</p>
+        </div>`,
+    )
+    .join("");
+  const competitors = pack.competitors
+    .slice(0, 4)
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.competitor)}</td>
+          <td>${escapeHtml(item.strength)}</td>
+          <td>${escapeHtml(item.opportunity)}</td>
+        </tr>`,
+    )
+    .join("");
+  const personas = pack.personas
+    .map(
+      (persona) => `
+        <div class="persona-card">
+          <strong>${escapeHtml(persona.name)}</strong>
+          <span>${escapeHtml(persona.role)}</span>
+          <p>${escapeHtml(persona.goal)}</p>
+        </div>`,
+    )
+    .join("");
+  const roadmap = pack.roadmap
+    .map(
+      (phase) => `
+        <div class="roadmap-item">
+          <strong>${escapeHtml(phase.horizon)}</strong>
+          <p>${escapeHtml(phase.items.join(" / "))}</p>
+        </div>`,
+    )
+    .join("");
   const userFlowId = "prototype-userFlow";
   const projectTitleId = "project-title";
 
   const bridgeScript = `
     <script>
       (function() {
-        if (!${isEditing}) return;
+        if (!${isEditing}) {
+          document.addEventListener('click', function(e) {
+            const action = e.target.closest('[data-action-button]');
+            if (!action) return;
+
+            e.preventDefault();
+            document.querySelectorAll('[data-action-button]').forEach(function(button) {
+              button.removeAttribute('data-active');
+              button.textContent = button.getAttribute('data-label') || button.textContent.trim();
+            });
+            action.setAttribute('data-active', 'true');
+            action.textContent = '已选择 · ' + (action.getAttribute('data-label') || action.textContent.trim());
+          });
+          return;
+        }
         
         const style = document.createElement('style');
         style.textContent = \`
@@ -163,12 +273,19 @@ export function generateSandboxHtml(pack: ProductPack, isEditing: boolean) {
           selectedEl.classList.add('od-selected');
 
           const computed = window.getComputedStyle(target);
+          const rect = target.getBoundingClientRect();
 
           window.parent.postMessage({
             type: 'element-selected',
             id: target.getAttribute('data-od-id'),
             tagName: target.tagName.toLowerCase(),
             textContent: target.textContent.trim(),
+            rect: {
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height
+            },
             styles: {
               color: computed.color,
               fontSize: computed.fontSize,
@@ -194,24 +311,202 @@ export function generateSandboxHtml(pack: ProductPack, isEditing: boolean) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(pack.project.title)}</title>
   <style>
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #111827; }
-    main { max-width: 1120px; margin: 0 auto; padding: 24px 16px; }
-    .hero { border: 1px solid rgba(17,24,39,.12); border-radius: 24px; background: #fff; padding: 24px; box-shadow: 0 10px 30px rgba(15,23,42,.03); margin-bottom: 24px; }
-    .eyebrow { color: #047857; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-    h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.15; font-weight: 800; }
-    .flow { margin-top: 12px; color: #4b5563; font-size: 14px; line-height: 1.6; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f1; color: #111111; }
+    button, input { font: inherit; }
+    .app-shell { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); background: #f5f5f1; }
+    .sidebar { border-right: 1px solid #e7e5df; background: rgba(255,255,255,.74); padding: 18px 14px; display: flex; flex-direction: column; gap: 18px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; }
+    .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: #111111; color: #ffffff; font-size: 13px; }
+    .nav-group { display: grid; gap: 6px; }
+    .nav-label { padding: 0 8px; font-size: 11px; font-weight: 700; color: #8a8a8a; text-transform: uppercase; }
+    .nav-item { width: 100%; min-height: 34px; border: 0; border-radius: 8px; background: transparent; color: #5f6062; display: flex; align-items: center; gap: 9px; padding: 8px; text-align: left; cursor: pointer; }
+    .nav-item span { color: #a0a0a0; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .nav-item.active, .nav-item:hover { background: #111111; color: #ffffff; }
+    .nav-item.active span, .nav-item:hover span { color: rgba(255,255,255,.58); }
+    .sidebar-footer { margin-top: auto; border: 1px solid #ece8de; border-radius: 12px; background: #fbfaf7; padding: 12px; }
+    .sidebar-footer strong { display: block; font-size: 12px; }
+    .sidebar-footer p { margin: 6px 0 0; color: #6a6b6c; font-size: 12px; line-height: 1.55; }
+    .workspace { min-width: 0; display: flex; flex-direction: column; }
+    .topbar { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #e7e5df; background: rgba(255,255,255,.78); padding: 12px 18px; backdrop-filter: blur(14px); }
+    .search { width: min(360px, 42vw); height: 34px; border: 1px solid #e7e5df; border-radius: 8px; background: #ffffff; color: #808080; display: flex; align-items: center; padding: 0 11px; font-size: 12px; }
+    .status-strip { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759; box-shadow: 0 0 0 4px #e1f2e6; }
+    .status-strip span { color: #6a6b6c; font-size: 12px; white-space: nowrap; }
+    main { min-width: 0; padding: 18px; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr); gap: 16px; margin-bottom: 16px; }
+    .hero-primary, .hero-side, .module, .screen-panel, .trace-row, .metric-card, .insight-row, .persona-card, .roadmap-item { border: 1px solid rgba(17,17,17,.10); background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(17,17,17,.035); }
+    .hero-primary { min-height: 248px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
+    .eyebrow { display: inline-flex; width: fit-content; border: 1px solid #d9efe2; border-radius: 7px; background: #eaf7ee; color: #177245; padding: 5px 8px; font-size: 11px; font-weight: 750; }
+    h1 { max-width: 780px; margin: 14px 0 0; font-size: 34px; line-height: 1.08; font-weight: 780; letter-spacing: 0; }
+    .flow { margin: 12px 0 0; max-width: 760px; color: #5f6062; font-size: 14px; line-height: 1.65; }
+    .hero-actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .prototype-action { min-height: 34px; appearance: none; border: 1px solid #111111; border-radius: 8px; background: #111111; color: #ffffff; cursor: pointer; font-size: 12px; font-weight: 700; padding: 8px 12px; transition: background-color .16s ease, color .16s ease, transform .16s ease, border-color .16s ease; }
+    .prototype-action:hover { transform: translateY(-1px); }
+    .prototype-action[data-active="true"] { background: #12a7ff; border-color: #12a7ff; color: #ffffff; }
+    .ghost-action { border-color: #dcdcdc; background: #ffffff; color: #111111; }
+    .hero-side { padding: 16px; display: grid; gap: 10px; }
+    .hero-side h2, .module h2 { margin: 0; font-size: 13px; font-weight: 760; }
+    .metric-grid { display: grid; gap: 8px; }
+    .metric-card { padding: 12px; box-shadow: none; }
+    .metric-card span, .insight-row span, .screen-index { color: #808080; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .metric-card strong { display: block; margin-top: 5px; color: #111111; font-size: 13px; line-height: 1.45; }
+    .layout-grid { display: grid; grid-template-columns: minmax(0, 1fr) 336px; gap: 16px; align-items: start; }
+    .main-stack { display: grid; gap: 16px; }
+    .side-stack { display: grid; gap: 16px; }
+    .module { padding: 16px; }
+    .module-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+    .module-header span { color: #808080; font-size: 12px; }
+    .screen-list { display: grid; gap: 10px; }
+    .screen-panel { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: start; gap: 14px; padding: 14px; box-shadow: none; }
+    .screen-index { padding-top: 3px; }
+    .screen-content h2 { margin: 0; font-size: 15px; font-weight: 760; }
+    .screen-content p { margin: 6px 0 0; color: #5f6062; font-size: 13px; line-height: 1.58; }
+    .component-grid { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .component-chip { border: 1px solid #e6e6e6; border-radius: 7px; background: #fbfaf7; color: #595a5c; padding: 5px 7px; font-size: 11px; }
+    .trace-list { display: grid; gap: 8px; }
+    .trace-row { padding: 12px; box-shadow: none; }
+    .trace-row p { margin: 0; color: #5f6062; font-size: 12px; line-height: 1.55; }
+    .trace-row strong { display: block; margin-top: 8px; font-size: 13px; }
+    .trace-row span { display: block; margin-top: 4px; color: #808080; font-size: 12px; line-height: 1.5; }
+    .insight-list, .persona-grid, .roadmap-list { display: grid; gap: 8px; }
+    .insight-row { padding: 12px; box-shadow: none; }
+    .insight-row strong { display: block; margin-top: 5px; font-size: 13px; }
+    .insight-row p { margin: 5px 0 0; color: #666; font-size: 12px; line-height: 1.55; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #eeeeee; padding: 9px 0; text-align: left; vertical-align: top; }
+    th { color: #808080; font-size: 11px; font-weight: 700; }
+    td { color: #4f5052; line-height: 1.45; }
+    .persona-card, .roadmap-item { padding: 12px; box-shadow: none; }
+    .persona-card strong, .roadmap-item strong { display: block; font-size: 13px; }
+    .persona-card span { display: block; margin-top: 3px; color: #12a7ff; font-size: 11px; font-weight: 700; }
+    .persona-card p, .roadmap-item p { margin: 6px 0 0; color: #5f6062; font-size: 12px; line-height: 1.55; }
+    @media (max-width: 980px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .hero, .layout-grid { grid-template-columns: 1fr; }
+      .screen-panel { grid-template-columns: 32px minmax(0, 1fr); }
+      .screen-panel .prototype-action { grid-column: 2; width: fit-content; }
+      .search { display: none; }
+    }
+    @media (max-width: 560px) {
+      main { padding: 12px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+      h1 { font-size: 25px; }
+      .hero-primary { padding: 16px; min-height: 220px; }
+      .screen-panel { grid-template-columns: 1fr; }
+      .screen-panel .prototype-action { grid-column: auto; }
+    }
   </style>
 </head>
 <body>
-  <main>
-    <section class="hero" data-od-id="hero-container" ${getStyleString("hero-container", "")}>
-      <div class="eyebrow" data-od-id="eyebrow" ${getStyleString("eyebrow", "")}>AI 交互原型</div>
-      <h1 data-od-id="${projectTitleId}" ${getStyleString(projectTitleId, "")}>${escapeHtml(pack.project.title)}</h1>
-      <p class="flow" data-od-id="${userFlowId}" ${getStyleString(userFlowId, "")}>${escapeHtml(pack.prototype.userFlow)}</p>
-    </section>
-    <section class="grid">${screens}</section>
-  </main>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">PM</span>
+        <span>${escapeHtml(pack.project.title)}</span>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Prototype IA</div>
+        ${navItems}
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Artifacts</div>
+        <button type="button" class="nav-item"><span>PRD</span>需求文档</button>
+        <button type="button" class="nav-item"><span>MR</span>调研与竞品</button>
+        <button type="button" class="nav-item"><span>RM</span>路线图</button>
+      </div>
+      <div class="sidebar-footer">
+        <strong>Workflow Goal</strong>
+        <p>${escapeHtml(pack.prd.objective)}</p>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="status-strip">
+          <span class="status-dot"></span>
+          <span>PRD linked prototype · ${escapeHtml(pack.artifactIndex.length.toString())} artifacts ready</span>
+        </div>
+        <div class="search">Search PRD, screens, assumptions...</div>
+      </header>
+      <main>
+        <section class="hero">
+          <div class="hero-primary" data-od-id="hero-container" ${getStyleString("hero-container", "")}>
+            <div>
+              <div class="eyebrow" data-od-id="eyebrow" ${getStyleString("eyebrow", "")}>AI Product Workspace</div>
+              <h1 data-od-id="${projectTitleId}" ${getStyleString(projectTitleId, "")}>${escapeHtml(pack.project.title)}</h1>
+              <p class="flow" data-od-id="${userFlowId}" ${getStyleString(userFlowId, "")}>${escapeHtml(pack.prototype.userFlow)}</p>
+            </div>
+            <div class="hero-actions">
+              <button type="button" class="prototype-action" data-action-button="true" data-label="运行工作流">运行工作流</button>
+              <button type="button" class="prototype-action ghost-action" data-action-button="true" data-label="导出方案包">导出方案包</button>
+            </div>
+          </div>
+          <aside class="hero-side">
+            <h2>Success Metrics</h2>
+            <div class="metric-grid">${metrics}</div>
+          </aside>
+        </section>
+
+        <section class="layout-grid">
+          <div class="main-stack">
+            <section class="module">
+              <div class="module-header">
+                <h2>Prototype Screens / IA</h2>
+                <span>${escapeHtml(pack.prototype.screens.length.toString())} screens</span>
+              </div>
+              <div class="screen-list">${screens}</div>
+            </section>
+
+            <section class="module">
+              <div class="module-header">
+                <h2>PRD-to-Prototype Traceability</h2>
+                <span>Requirement -> Screen -> Rationale</span>
+              </div>
+              <div class="trace-list">${prdLinks}</div>
+            </section>
+
+            <section class="module">
+              <div class="module-header">
+                <h2>Competitor Direction</h2>
+                <span>Positioning gaps</span>
+              </div>
+              <table>
+                <thead>
+                  <tr><th>Competitor</th><th>Strength</th><th>Opportunity</th></tr>
+                </thead>
+                <tbody>${competitors}</tbody>
+              </table>
+            </section>
+          </div>
+
+          <aside class="side-stack">
+            <section class="module">
+              <div class="module-header">
+                <h2>Market Signals</h2>
+                <span>Research</span>
+              </div>
+              <div class="insight-list">${opportunities}</div>
+            </section>
+            <section class="module">
+              <div class="module-header">
+                <h2>User Personas</h2>
+                <span>JTBD</span>
+              </div>
+              <div class="persona-grid">${personas}</div>
+            </section>
+            <section class="module">
+              <div class="module-header">
+                <h2>Outcome Roadmap</h2>
+                <span>MVP to scale</span>
+              </div>
+              <div class="roadmap-list">${roadmap}</div>
+            </section>
+          </aside>
+        </section>
+      </main>
+    </div>
+  </div>
   ${bridgeScript}
 </body>
 </html>`;
@@ -277,45 +572,64 @@ function updatePackStyle(pack: ProductPack, id: string, key: string, value: stri
 
 export function StudioPrototypePreview({
   activeViewport,
-  exportHref,
-  isExporting,
-  isEditing = false,
-  onEditPrompt,
+  activeMode = "预览",
+  exportingFormat,
+  isEditing = activeMode === "修改",
   onExportHtml,
-  onRegenerate,
+  onExportLiveArtifact,
+  onSwitchMode,
   productPack,
+  sourceCode,
+  viewerSubtitle,
+  viewerTitle,
   onChange,
 }: {
   activeViewport?: string;
-  exportHref?: string;
-  isExporting?: boolean;
+  activeMode?: "修改" | "源码" | "预览";
+  exportingFormat?: "html" | "json" | null;
   isEditing?: boolean;
-  onEditPrompt?: () => void;
   onExportHtml?: () => void;
-  onRegenerate?: () => void;
+  onExportLiveArtifact?: () => void;
+  onSwitchMode?: (mode: "修改" | "源码" | "预览") => void;
   productPack?: ProductPack;
+  sourceCode?: string;
+  viewerSubtitle?: string;
+  viewerTitle?: string;
   onChange?: (pack: ProductPack) => void;
 }) {
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
-  const [prevActiveViewport, setPrevActiveViewport] = useState(activeViewport);
   const [viewportParam, setViewportParam] = useState(activeViewport || "desktop");
-
-  if (activeViewport !== prevActiveViewport) {
-    setPrevActiveViewport(activeViewport);
-    setViewportParam(activeViewport || "desktop");
-  }
+  const [viewportManuallySelected, setViewportManuallySelected] = useState(Boolean(activeViewport));
+  const [zoom, setZoom] = useState(100);
+  const [viewportMenuOpen, setViewportMenuOpen] = useState(false);
+  const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [inspectorStyle, setInspectorStyle] = useState<CSSProperties>({
+    maxHeight: 360,
+    right: 12,
+    top: 12,
+    width: 300,
+  });
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const selectedViewport = getViewportFromParam(viewportParam);
 
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const stageShellRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [canvasWidth, setCanvasWidth] = useState<number | null>(null);
+  const viewportMenuRef = useRef<HTMLDivElement>(null);
+  const zoomMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState<PreviewCanvasSize | null>(null);
 
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
     const measure = () => {
-      setCanvasWidth(el.clientWidth);
+      setCanvasSize({
+        height: el.clientHeight,
+        width: el.clientWidth,
+      });
     };
     measure();
     if (typeof ResizeObserver !== "undefined") {
@@ -327,9 +641,71 @@ export function StudioPrototypePreview({
     return () => window.removeEventListener("resize", measure);
   }, []);
 
+  useEffect(() => {
+    if (activeMode === "源码") return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const el = canvasRef.current;
+      if (!el) return;
+
+      setCanvasSize({
+        height: el.clientHeight,
+        width: el.clientWidth,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeMode]);
+
+  useEffect(() => {
+    if (!viewportMenuOpen && !zoomMenuOpen && !exportMenuOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+
+      if (!viewportMenuRef.current?.contains(target)) {
+        setViewportMenuOpen(false);
+      }
+
+      if (!zoomMenuRef.current?.contains(target)) {
+        setZoomMenuOpen(false);
+      }
+
+      if (!exportMenuRef.current?.contains(target)) {
+        setExportMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [exportMenuOpen, viewportMenuOpen, zoomMenuOpen]);
+
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(document.fullscreenElement === viewerRef.current);
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const responsiveViewportParam =
+    canvasSize === null ? viewportParam : getResponsiveViewportParam(canvasSize.width);
+  const selectedViewport = getViewportFromParam(
+    viewportManuallySelected ? viewportParam : responsiveViewportParam,
+  );
+  const SelectedViewportIcon = selectedViewport.icon;
   const canvasPadding = selectedViewport.param === "mobile" ? 24 : 48;
-  const availableCanvasWidth = canvasWidth ? Math.max(1, canvasWidth - canvasPadding) : selectedViewport.width;
-  const scale = Math.min(1, availableCanvasWidth / selectedViewport.width);
+  const availableCanvasWidth = canvasSize ? Math.max(1, canvasSize.width - canvasPadding) : selectedViewport.width;
+  const availableCanvasHeight = canvasSize
+    ? Math.max(1, canvasSize.height - canvasPadding)
+    : selectedViewport.height + previewChromeHeight;
+  const fitScale = Math.min(
+    1,
+    availableCanvasWidth / selectedViewport.width,
+    availableCanvasHeight / (selectedViewport.height + previewChromeHeight),
+  );
+  const scale = fitScale * (zoom / 100);
   const scaledFrameWidth = Math.round(selectedViewport.width * scale);
   const scaledFrameHeight = Math.round((selectedViewport.height + previewChromeHeight) * scale);
 
@@ -352,13 +728,145 @@ export function StudioPrototypePreview({
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const panelWidth = 300;
+      const preferredPanelHeight = 360;
+      const pad = 12;
+      const fallbackStyle: CSSProperties = {
+        maxHeight: preferredPanelHeight,
+        right: pad,
+        top: pad,
+        width: panelWidth,
+      };
+      const shellRect = stageShellRef.current?.getBoundingClientRect();
+      const iframeRect = iframeRef.current?.getBoundingClientRect();
+
+      if (!selectedElement?.rect || !shellRect || !iframeRect) {
+        setInspectorStyle(fallbackStyle);
+        return;
+      }
+
+      const panelHeight = Math.min(preferredPanelHeight, Math.max(240, shellRect.height - pad * 2));
+      const targetLeft = iframeRect.left - shellRect.left + selectedElement.rect.left * scale;
+      const targetTop = iframeRect.top - shellRect.top + selectedElement.rect.top * scale;
+      const targetRight = targetLeft + selectedElement.rect.width * scale;
+      const targetBottom = targetTop + selectedElement.rect.height * scale;
+      const maxLeft = Math.max(pad, shellRect.width - panelWidth - pad);
+      const maxTop = Math.max(pad, shellRect.height - panelHeight - pad);
+      const topAligned = clampNumber(targetTop, pad, maxTop);
+
+      if (targetRight + pad + panelWidth <= shellRect.width - pad) {
+        setInspectorStyle({
+          left: targetRight + pad,
+          maxHeight: panelHeight,
+          top: topAligned,
+          width: panelWidth,
+        });
+        return;
+      }
+
+      if (targetLeft - panelWidth - pad >= pad) {
+        setInspectorStyle({
+          left: targetLeft - panelWidth - pad,
+          maxHeight: panelHeight,
+          top: topAligned,
+          width: panelWidth,
+        });
+        return;
+      }
+
+      const leftAligned = clampNumber(targetLeft, pad, maxLeft);
+
+      if (targetBottom + pad + panelHeight <= shellRect.height - pad) {
+        setInspectorStyle({
+          left: leftAligned,
+          maxHeight: panelHeight,
+          top: targetBottom + pad,
+          width: panelWidth,
+        });
+        return;
+      }
+
+      if (targetTop - panelHeight - pad >= pad) {
+        setInspectorStyle({
+          left: leftAligned,
+          maxHeight: panelHeight,
+          top: targetTop - panelHeight - pad,
+          width: panelWidth,
+        });
+        return;
+      }
+
+      setInspectorStyle({
+        left: clampNumber(
+          targetRight + pad <= shellRect.width / 2 ? targetRight + pad : targetLeft - panelWidth - pad,
+          pad,
+          maxLeft,
+        ),
+        maxHeight: panelHeight,
+        top: clampNumber(targetTop, pad, maxTop),
+        width: panelWidth,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [canvasSize, isEditing, scale, selectedElement]);
+
   const pack = productPack;
   if (!pack) {
     return <div className="p-8 text-center text-neutral-500">等待生成产品方案包...</div>;
   }
 
-  const prototypeTitle = pack.prototype.liveArtifact.title || `${pack.project.title} Prototype`;
   const sandboxHtml = generateSandboxHtml(pack, isEditing);
+  const toolbarTitle = viewerTitle ?? "prototype/index.html";
+  const toolbarSubtitle = viewerSubtitle ?? pack.prototype.userFlow;
+  const modeOptions = [
+    { label: "预览", value: "预览" as const, icon: Eye },
+    { label: "修改", value: "修改" as const, icon: Pencil },
+    { label: "源码", value: "源码" as const, icon: Braces },
+  ];
+
+  const handleReloadPreview = () => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    iframe.srcdoc = "";
+    window.setTimeout(() => {
+      iframe.srcdoc = sandboxHtml;
+    }, 0);
+  };
+
+  const handleOpenPreviewWindow = () => {
+    const previewWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!previewWindow) return;
+
+    previewWindow.document.open();
+    previewWindow.document.write(sandboxHtml);
+    previewWindow.document.close();
+  };
+
+  const handleToggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
+
+    void viewerRef.current?.requestFullscreen().catch(() => {
+      setIsFullscreen(false);
+    });
+  };
+
+  const handleExportHtml = () => {
+    onExportHtml?.();
+    setExportMenuOpen(false);
+  };
+
+  const handleExportLiveArtifact = () => {
+    onExportLiveArtifact?.();
+    setExportMenuOpen(false);
+  };
 
   const handleTextChange = (text: string) => {
     if (!selectedElement || !onChange) return;
@@ -517,57 +1025,212 @@ export function StudioPrototypePreview({
   ];
 
   return (
-    <div data-testid="prototype-container" className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-neutral-500">
-            {isEditing ? "原型设计与编辑工作台" : "原型交付物"}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold text-neutral-950">{prototypeTitle}</h2>
-            <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-500">
-              {selectedViewport.label} · {selectedViewport.size}
-            </span>
+    <div
+      data-testid="prototype-container"
+      ref={viewerRef}
+      className={cn(
+        "min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm",
+        isFullscreen && "h-screen rounded-none border-0",
+      )}
+    >
+      <div className="border-b border-neutral-200 bg-white px-3 py-2.5">
+        <div className="grid gap-2 xl:grid-cols-[minmax(220px,1fr)_auto] xl:items-center">
+          <div className="min-w-0 xl:max-w-[420px]">
+            <div className="flex min-w-0 items-center gap-2">
+              <Code2 className="h-4 w-4 shrink-0 text-neutral-500" />
+              <p className="truncate text-sm font-semibold text-neutral-950">{toolbarTitle}</p>
+            </div>
+            <p className="mt-0.5 max-w-3xl truncate text-xs text-neutral-500">{toolbarSubtitle}</p>
           </div>
-        </div>
-        <div className="flex w-full overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-100 p-1 md:w-auto">
-          {viewports.map((item) => {
-            const Icon = item.icon;
-            const active = item.param === selectedViewport.param;
-            return (
+
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 xl:flex-nowrap xl:justify-end">
+            <div className="flex shrink-0 rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+              {modeOptions.map((mode) => {
+                const Icon = mode.icon;
+                const active = activeMode === mode.value;
+
+                return (
+                  <button
+                    className={cn(
+                      "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition",
+                      active
+                        ? "bg-white text-neutral-950 shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-950",
+                    )}
+                    key={mode.value}
+                    onClick={() => onSwitchMode?.(mode.value)}
+                    type="button"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {mode.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative shrink-0" ref={viewportMenuRef}>
               <button
-                className={cn(
-                  "flex h-8 flex-1 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium text-neutral-500 transition hover:bg-white/70 hover:text-neutral-950 active:scale-[0.98] md:flex-none",
-                  active && "bg-white text-neutral-950 shadow-sm ring-1 ring-black/5",
-                )}
-                key={item.label}
-                onClick={() => setViewportParam(item.param)}
+                aria-expanded={viewportMenuOpen}
+                aria-haspopup="menu"
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-950"
+                onClick={() => setViewportMenuOpen((value) => !value)}
                 type="button"
-                role="tab"
-                aria-selected={active}
               >
-                <Icon className="h-3.5 w-3.5" />
-                {item.label}
+                <SelectedViewportIcon className="h-3.5 w-3.5 text-neutral-500" />
+                <span>{selectedViewport.label}</span>
+                <span className="text-neutral-400">{selectedViewport.size}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-neutral-400" />
               </button>
-            );
-          })}
+              {viewportMenuOpen ? (
+                <div className="absolute right-0 z-20 mt-2 w-40 overflow-hidden rounded-xl border border-black/10 bg-white p-1 shadow-xl">
+                  {viewports.map((item) => {
+                    const Icon = item.icon;
+                    const active = item.param === selectedViewport.param;
+
+                    return (
+                      <button
+                        className={cn(
+                          "flex h-8 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-950",
+                          active && "bg-neutral-950 text-white hover:bg-neutral-950 hover:text-white",
+                        )}
+                        key={item.param}
+                        onClick={() => {
+                          setViewportManuallySelected(true);
+                          setViewportParam(item.param);
+                          setViewportMenuOpen(false);
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <Icon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        <span className={cn("text-[11px]", active ? "text-white/62" : "text-neutral-400")}>
+                          {item.size}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="relative shrink-0" ref={zoomMenuRef}>
+              <button
+                aria-expanded={zoomMenuOpen}
+                aria-haspopup="menu"
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-950"
+                onClick={() => setZoomMenuOpen((value) => !value)}
+                type="button"
+              >
+                <span className="tabular-nums">{zoom}%</span>
+                <ChevronDown className="h-3.5 w-3.5 text-neutral-400" />
+              </button>
+              {zoomMenuOpen ? (
+                <div className="absolute right-0 z-20 mt-2 w-32 overflow-hidden rounded-xl border border-black/10 bg-white p-1 shadow-xl">
+                  {zoomLevels.map((level) => (
+                    <button
+                      className={cn(
+                        "flex h-8 w-full items-center justify-between rounded-lg px-2.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-950",
+                        zoom === level && "bg-neutral-950 text-white hover:bg-neutral-950 hover:text-white",
+                      )}
+                      key={level}
+                      onClick={() => {
+                        setZoom(level);
+                        setZoomMenuOpen(false);
+                      }}
+                      role="menuitem"
+                      type="button"
+                    >
+                      <span>{level}%</span>
+                      {zoom === level ? <Check className="h-3.5 w-3.5" /> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <button
+              aria-label="重载预览"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-950"
+              onClick={handleReloadPreview}
+              type="button"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            <button
+              aria-label="新窗口打开预览"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-950"
+              onClick={handleOpenPreviewWindow}
+              type="button"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </button>
+            <button
+              aria-label={isFullscreen ? "退出全屏" : "全屏预览"}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-950"
+              onClick={handleToggleFullscreen}
+              type="button"
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+            <div className="relative shrink-0" ref={exportMenuRef}>
+              <button
+                aria-expanded={exportMenuOpen}
+                aria-haspopup="menu"
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-neutral-950 px-3 text-xs font-medium text-white shadow-sm transition hover:bg-black"
+                onClick={() => setExportMenuOpen((value) => !value)}
+                type="button"
+              >
+                <Download className="h-3.5 w-3.5" />
+                导出
+                <ChevronDown className="h-3.5 w-3.5 text-white/60" />
+              </button>
+              {exportMenuOpen ? (
+                <div className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-black/10 bg-white p-1 shadow-xl">
+                  <button
+                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-55"
+                    disabled={!onExportHtml || exportingFormat === "html"}
+                    onClick={handleExportHtml}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <Code2 className="h-3.5 w-3.5" />
+                    {exportingFormat === "html" ? "HTML 导出中" : "导出 HTML"}
+                  </button>
+                  <button
+                    className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-55"
+                    disabled={!onExportLiveArtifact || exportingFormat === "json"}
+                    onClick={handleExportLiveArtifact}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <Braces className="h-3.5 w-3.5" />
+                    {exportingFormat === "json" ? "Artifact 导出中" : "导出 Live Artifact"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
 
+      <div className={cn("bg-[#111111] p-4", activeMode !== "源码" && "hidden")}>
+          <pre className="max-h-[calc(100vh-220px)] min-h-[560px] overflow-auto rounded-lg border border-white/10 bg-[#111111] p-4 text-xs leading-5 text-white/82">
+            <code>{sourceCode ?? sandboxHtml}</code>
+          </pre>
+        </div>
       <div
-        className={cn(
-          "grid divide-y divide-neutral-200",
-          isEditing
-            ? "lg:grid-cols-[minmax(0,1fr)_340px] lg:divide-x lg:divide-y-0"
-            : "grid-cols-1",
-        )}
+        className={cn("relative overflow-hidden", activeMode === "源码" && "hidden")}
+        ref={stageShellRef}
       >
         {/* Sandbox Canvas */}
         <div
           ref={canvasRef}
           className="flex items-start justify-center overflow-auto bg-[linear-gradient(45deg,rgba(221,221,221,0.42)_25%,transparent_25%),linear-gradient(-45deg,rgba(221,221,221,0.42)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,rgba(221,221,221,0.42)_75%),linear-gradient(-45deg,transparent_75%,rgba(221,221,221,0.42)_75%)] bg-[length:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] bg-neutral-100 p-3 sm:p-6"
           style={{
-            height: "clamp(420px, calc(100vh - 420px), 600px)",
+            height: isFullscreen ? "calc(100vh - 58px)" : "clamp(480px, calc(100vh - 210px), 960px)",
           }}
         >
           <div
@@ -603,6 +1266,7 @@ export function StudioPrototypePreview({
               <iframe
                 ref={iframeRef}
                 srcDoc={sandboxHtml}
+                title={`${pack.project.title} prototype preview`}
                 style={{
                   width: `${selectedViewport.width}px`,
                   height: `${selectedViewport.height}px`,
@@ -616,19 +1280,33 @@ export function StudioPrototypePreview({
 
         {/* Visual / Text Element Inspector */}
         {isEditing && (
-          <div className="p-4 overflow-y-auto space-y-4 max-h-[600px] text-sm text-neutral-700 bg-neutral-50/50">
-            <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+          <div
+            className="absolute z-30 flex flex-col overflow-hidden rounded-xl border border-black/10 bg-white/95 text-sm text-neutral-700 shadow-2xl shadow-black/18 backdrop-blur-xl"
+            style={inspectorStyle}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-3 py-2.5 backdrop-blur-xl">
               <span className="flex items-center gap-1.5 font-semibold text-neutral-900">
                 <MousePointer2 className="h-4 w-4 text-[#12a7ff]" />
                 原型元素检查器
               </span>
-              {selectedElement && (
-                <span className="text-[10px] font-mono bg-neutral-200 text-neutral-600 rounded px-1.5 py-0.5 uppercase">
-                  {selectedElement.tagName}
-                </span>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {selectedElement && (
+                  <span className="rounded bg-neutral-200 px-1.5 py-0.5 font-mono text-[10px] uppercase text-neutral-600">
+                    {selectedElement.tagName}
+                  </span>
+                )}
+                <button
+                  aria-label="关闭编辑窗口"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-950"
+                  onClick={() => onSwitchMode?.("预览")}
+                  type="button"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
 
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {selectedElement ? (
               <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
                 {/* Element ID Indicator */}
@@ -693,7 +1371,7 @@ export function StudioPrototypePreview({
                         onClick={() => {
                           const parts = selectedElement.id.split("-");
                           const sIdx = parseInt(parts[1], 10);
-                          const cIdx = parseInt(parts[3], 10);
+                          const cIdx = parseInt(parts[4], 10);
                           if (!isNaN(sIdx) && !isNaN(cIdx)) handleDeleteComponent(sIdx, cIdx);
                         }}
                         className="w-full inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 text-xs font-medium text-rose-700 hover:bg-rose-100 transition animate-in fade-in"
@@ -950,53 +1628,8 @@ export function StudioPrototypePreview({
                 </div>
               </div>
             )}
+            </div>
           </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 border-t border-neutral-200 bg-white p-4 sm:justify-end">
-        <button
-          className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:flex-none"
-          onClick={onRegenerate}
-          type="button"
-        >
-          <RefreshCw className="h-4 w-4" />
-          重新生成
-        </button>
-        <button
-          className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:flex-none"
-          onClick={onEditPrompt}
-          type="button"
-        >
-          <PanelTop className="h-4 w-4" />
-          编辑提示词
-        </button>
-        {onExportHtml ? (
-          <button
-            className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-neutral-400 sm:flex-none"
-            disabled={isExporting}
-            onClick={onExportHtml}
-            type="button"
-          >
-            <Code2 className="h-4 w-4" />
-            {isExporting ? "导出中" : "导出 HTML"}
-          </button>
-        ) : exportHref ? (
-          <a
-            className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black sm:flex-none"
-            href={exportHref}
-          >
-            <Code2 className="h-4 w-4" />
-            导出 HTML
-          </a>
-        ) : (
-          <button
-            className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black sm:flex-none"
-            type="button"
-          >
-            <Code2 className="h-4 w-4" />
-            导出 HTML
-          </button>
         )}
       </div>
     </div>

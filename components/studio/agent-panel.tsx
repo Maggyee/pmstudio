@@ -19,17 +19,17 @@ import { cn } from "@/lib/utils";
 const fallbackEvents: HarnessEvent[] = [
   {
     type: "queued",
-    agent: "PM Orchestrator",
-    message: "读取产品想法并加载 Product Pack workflow。",
+    agent: "需求理解",
+    message: "读取产品想法并确定 Product Pack 的文档产物范围。",
   },
   {
     type: "running",
-    agent: "需求分析 Agent",
+    agent: "机会梳理",
     message: "拆解目标用户、场景、痛点和产品假设。",
   },
   {
     type: "artifact",
-    agent: "PRD Agent",
+    agent: "PRD 文档",
     message: "输出 PRD、核心功能和 MVP 范围。",
     artifactId: "prd",
   },
@@ -43,9 +43,25 @@ function getEventIcon(event: HarnessEvent) {
 }
 
 function getEventLabel(event: HarnessEvent) {
-  if (event.artifactId) return `${event.agent} · ${event.artifactId}`;
+  if (event.artifactId) return `${event.agent} · ${getArtifactLabel(event.artifactId)}`;
 
   return event.agent;
+}
+
+function getArtifactLabel(artifactId: string) {
+  const labels: Record<string, string> = {
+    "competitor-analysis": "竞品分析",
+    "core-features": "核心功能",
+    "executive-summary": "汇报摘要",
+    personas: "用户画像",
+    prd: "PRD",
+    prototype: "原型",
+    "prototype-structure": "原型结构",
+    research: "市场研究",
+    roadmap: "路线图",
+  };
+
+  return labels[artifactId] ?? artifactId;
 }
 
 function getRunModeLabel(item: AgentRunHistoryItem) {
@@ -97,11 +113,11 @@ export function AgentPanel({
       >
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
           <MessageSquareText className="h-4 w-4 text-emerald-600" />
-          多 Agent 协作笔记
+          工作流笔记
         </div>
         <div className={cn("space-y-3 text-sm leading-6 text-neutral-700", floating && "text-[13px] leading-6")}>
           <p>
-            多个 Agent 正在围绕 {pack.project.title} 生成、校验和整理产品方案包。
+            PM Studio 正在围绕 {pack.project.title} 生成、校验和整理产品方案包。
           </p>
           <ul className="space-y-2">
             <li className="flex gap-2">
@@ -110,7 +126,7 @@ export function AgentPanel({
             </li>
             <li className="flex gap-2">
               <Check className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
-              当前数据来自统一 Product Pack，可替换为真实 Codex / Claude Code 运行结果。
+              当前数据来自统一 Product Pack，后续可替换为真实 Codex / Claude Code 运行结果。
             </li>
           </ul>
         </div>
@@ -123,7 +139,7 @@ export function AgentPanel({
         )}
       >
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-semibold">Agent 编排</p>
+          <p className="text-sm font-semibold">编排进度</p>
           <span className="rounded-full border border-blue-500/10 bg-blue-50/80 px-2 py-1 text-xs font-medium text-blue-700">
             生成中
           </span>

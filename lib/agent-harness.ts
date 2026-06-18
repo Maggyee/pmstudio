@@ -1,17 +1,16 @@
 import {
   getPMWorkflow,
-  mvpPMWorkflows,
+  pmWorkflows,
   type PMWorkflow,
   type PMWorkflowArtifact,
+  type PMWorkflowId,
 } from "@/lib/pm-workflows";
 import { buildProductPackFromIdea, type ProductPack } from "@/lib/product-pack";
+import type { WorkflowDefinition, WorkflowStep } from "@/lib/workflow-harness";
 
 export type AgentProviderId = "mock" | "codex" | "claude-code" | "api-fallback";
 
-export type WorkflowId =
-  | "idea-to-product-pack"
-  | "prd-to-prototype-linker"
-  | "project-summarizer";
+export type WorkflowId = PMWorkflowId;
 
 export type PermissionMode = "none" | "strict" | "permissive";
 
@@ -85,6 +84,7 @@ export type GeneratedPack = {
   workflowId: WorkflowId;
   input: string;
   workflow: HarnessWorkflow;
+  workflowDefinition?: WorkflowDefinition;
   referenceArchitecture: HarnessReferenceSource[];
   events: HarnessEvent[];
   artifacts: Record<string, string | string[]>;
@@ -169,7 +169,7 @@ export const harnessReferenceSources: HarnessReferenceSource[] = [
 export const agentProviders: AgentProvider[] = [
   {
     id: "mock",
-    displayName: "Mock PM Agent",
+    displayName: "Mock PM Studio",
     status: "available",
     command: "in-process",
     capabilities: {
@@ -222,7 +222,7 @@ export const agentProviders: AgentProvider[] = [
 ];
 
 export const harnessWorkflows: HarnessWorkflow[] = [
-  ...mvpPMWorkflows.map(toHarnessWorkflow),
+  ...pmWorkflows.map(toHarnessWorkflow),
 ];
 
 function toHarnessWorkflow(workflow: PMWorkflow): HarnessWorkflow {
@@ -230,7 +230,7 @@ function toHarnessWorkflow(workflow: PMWorkflow): HarnessWorkflow {
     id: workflow.id as WorkflowId,
     title: workflow.name,
     description: workflow.description,
-    skillPath: getLocalSkillPath(workflow.id as WorkflowId),
+    skillPath: getLocalSkillPath(workflow),
     category: workflow.category,
     referenceSkillIds: workflow.referenceSkillIds,
     userFacingActions: Array.from(
@@ -246,14 +246,14 @@ function toHarnessWorkflow(workflow: PMWorkflow): HarnessWorkflow {
   };
 }
 
-function getLocalSkillPath(workflowId: WorkflowId) {
-  const paths: Record<WorkflowId, string> = {
+function getLocalSkillPath(workflow: PMWorkflow) {
+  const paths: Partial<Record<WorkflowId, string>> = {
     "idea-to-product-pack": "skills/idea-to-product-pack/SKILL.md",
     "prd-to-prototype-linker": "skills/prd-prototype-linker/SKILL.md",
     "project-summarizer": "skills/project-summarizer/SKILL.md",
   };
 
-  return paths[workflowId];
+  return paths[workflow.id] ?? workflow.referenceSkills[0]?.sourcePath ?? "references/sources/pm-skills";
 }
 
 function getArtifactFormat(artifact: PMWorkflowArtifact): WorkflowArtifact["format"] {
@@ -275,39 +275,136 @@ function getHarnessWorkflow(workflowId: WorkflowId) {
   return workflow;
 }
 
+function getArtifactPayloads(productPack: ProductPack, pmWorkflowDescription?: string) {
+  return {
+    positioning: productPack.project.positioning,
+    "target-users": productPack.project.targetUsers,
+    "pain-points": productPack.project.painPoints,
+    "value-proposition": productPack.project.valueProposition,
+    prd: productPack.prd.objective,
+    "core-features": productPack.prd.coreFeatures,
+    "user-stories": productPack.prd.userStories,
+    assumptions: productPack.prd.assumptions,
+    "user-flow": productPack.prototype.userFlow,
+    "prototype-structure": productPack.prototype.screens.map((screen) => screen.name),
+    "prototype-brief": productPack.prototype.openDesignPrompt,
+    "prototype-preview": `${productPack.project.title} 原型预览已在 Prototype tab 中展示，可继续接入 iframe-style live artifact。`,
+    "market-research": productPack.research.marketOpportunity.map((item) => item.value),
+    "competitor-analysis": productPack.competitors.map((item) => item.competitor),
+    roadmap: productPack.roadmap.map((item) => `${item.horizon}: ${item.items.join(" / ")}`),
+    "executive-summary":
+      pmWorkflowDescription ??
+      "双参考架构下，OpenDesign 提供工作台和 artifact 体验，pm-skills 提供 PM 方法论和产物结构。",
+  };
+}
+
+function getStepAgent(step: WorkflowStep) {
+  const labels: Record<WorkflowStep["kind"], string> = {
+    "agent-run": "Agent 编排",
+    "competitor-analysis": "竞品分析",
+    export: "方案打包",
+    intake: "需求理解",
+    "market-research": "市场调研",
+    personas: "用户画像",
+    prd: "PRD 文档",
+    prototype: "原型映射",
+    roadmap: "路线图",
+    summary: "方案摘要",
+  };
+
+  return labels[step.kind];
+}
+
+function getStepArtifactId(step: WorkflowStep) {
+  return step.outputArtifactIds[0];
+}
+
+function buildWorkflowDefinitionEvents({
+  productPack,
+  workflowDefinition,
+}: {
+  productPack: ProductPack;
+  workflowDefinition: WorkflowDefinition;
+}): HarnessEvent[] {
+  const enabledSteps = workflowDefinition.steps.filter((step) => step.enabled);
+
+  if (!enabledSteps.length) {
+    return [
+      {
+        type: "queued",
+        agent: "Workflow Harness",
+        message: "当前编排没有启用步骤，已保留默认 Product Pack 输出。",
+      },
+    ];
+  }
+
+  return enabledSteps.map((step, index) => {
+    const isLast = index === enabledSteps.length - 1;
+    const isArtifactStep = step.outputArtifactIds.length > 0 && !isLast;
+
+    return {
+      type: isLast ? "done" : isArtifactStep ? "artifact" : "running",
+      agent: getStepAgent(step),
+      artifactId: getStepArtifactId(step),
+      message: `${step.title}: ${step.description}（${productPack.project.title}）`,
+    };
+  });
+}
+
 export function generateMockPack({
   workflowId,
   input,
+  workflowDefinition,
 }: {
   workflowId: WorkflowId;
   input: string;
+  workflowDefinition?: WorkflowDefinition;
 }): GeneratedPack {
   const workflow = getHarnessWorkflow(workflowId);
   const pmWorkflow = getPMWorkflow(workflowId);
   const productPack = buildProductPackFromIdea(input);
+  const baseArtifacts = getArtifactPayloads(productPack, pmWorkflow?.description);
+
+  if (workflowDefinition) {
+    return {
+      workflowId,
+      input,
+      workflow,
+      workflowDefinition,
+      referenceArchitecture: harnessReferenceSources,
+      productPack,
+      events: buildWorkflowDefinitionEvents({
+        productPack,
+        workflowDefinition,
+      }),
+      artifacts: baseArtifacts,
+      openDesignPromptPlaceholder: productPack.prototype.openDesignPrompt,
+    };
+  }
 
   if (workflowId === "project-summarizer") {
     return {
       workflowId,
       input,
       workflow,
+      workflowDefinition,
       referenceArchitecture: harnessReferenceSources,
       productPack,
       events: [
         {
           type: "running",
-          agent: "Summary Agent",
+          agent: "汇报摘要",
           message: `读取 ${productPack.project.title} 的 PRD、原型、竞品和路线图 artifact。`,
         },
         {
           type: "artifact",
-          agent: "Summary Agent",
+          agent: "汇报摘要",
           message: "按目标受众压缩成项目汇报摘要。",
           artifactId: "executive-summary",
         },
         {
           type: "done",
-          agent: "PM Orchestrator",
+          agent: "方案打包",
           message: "输出决策点、风险和下一步行动。",
         },
       ],
@@ -322,23 +419,24 @@ export function generateMockPack({
       workflowId,
       input,
       workflow,
+      workflowDefinition,
       referenceArchitecture: harnessReferenceSources,
       productPack,
       events: [
         {
           type: "running",
-          agent: "PRD Agent",
+          agent: "PRD 解析",
           message: `参考 pm-skills 的 PRD 与 user story 结构，提取 ${productPack.project.title} 核心功能、角色和任务边界。`,
         },
         {
           type: "artifact",
-          agent: "Prototype Agent",
+          agent: "原型映射",
           message: "参考 OpenDesign 的 Artifact Canvas，把功能映射为页面信息架构和可预览原型。",
           artifactId: "prototype",
         },
         {
           type: "done",
-          agent: "Review Agent",
+          agent: "联动校验",
           message: "输出 PRD 到原型的可评审链路。",
         },
       ],
@@ -357,55 +455,40 @@ export function generateMockPack({
     workflowId,
     input,
     workflow,
+    workflowDefinition,
     referenceArchitecture: harnessReferenceSources,
     productPack,
     events: [
       {
         type: "queued",
-        agent: "PM Orchestrator",
+        agent: "需求理解",
         message: "读取产品想法，选择 Idea-to-Product Pack workflow，并加载双参考架构。",
       },
       {
         type: "running",
-        agent: "需求分析 Agent",
+        agent: "机会梳理",
         message: "参考 pm-skills discovery / strategy 方法，生成产品定位、目标用户和痛点假设。",
       },
       {
         type: "artifact",
-        agent: "PRD Agent",
+        agent: "PRD 文档",
         message: "参考 pm-execution 的 PRD、user stories 和 roadmap 结构起草 MVP 范围。",
         artifactId: "prd",
       },
       {
         type: "artifact",
-        agent: "Prototype Agent",
+        agent: "原型映射",
         message: "参考 OpenDesign 的 Artifact Canvas，把用户流程转成页面结构和原型说明。",
         artifactId: "prototype-structure",
       },
       {
         type: "done",
-        agent: "Summary Agent",
+        agent: "方案摘要",
         message: "整理项目汇报摘要和下一步建议。",
         artifactId: "executive-summary",
       },
     ],
-    artifacts: {
-      positioning: productPack.project.positioning,
-      "target-users": productPack.project.targetUsers,
-      "pain-points": productPack.project.painPoints,
-      "value-proposition": productPack.project.valueProposition,
-      prd: productPack.prd.objective,
-      "core-features": productPack.prd.coreFeatures,
-      "user-stories": productPack.prd.userStories,
-      assumptions: productPack.prd.assumptions,
-      "prototype-structure": productPack.prototype.screens.map((screen) => screen.name),
-      "market-research": productPack.research.marketOpportunity.map((item) => item.value),
-      "competitor-analysis": productPack.competitors.map((item) => item.competitor),
-      roadmap: productPack.roadmap.map((item) => `${item.horizon}: ${item.items.join(" / ")}`),
-      "executive-summary":
-        pmWorkflow?.description ??
-        "双参考架构下，OpenDesign 提供工作台和 artifact 体验，pm-skills 提供 PM 方法论和产物结构。",
-    },
+    artifacts: baseArtifacts,
     openDesignPromptPlaceholder: productPack.prototype.openDesignPrompt,
   };
 }

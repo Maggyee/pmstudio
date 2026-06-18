@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bot,
+  Check,
   ChevronDown,
   Download,
   FileText,
   GalleryVerticalEnd,
-  Play,
+  GitBranchPlus,
   RefreshCw,
+  Search,
   Share2,
   Sparkles,
 } from "lucide-react";
@@ -16,6 +18,7 @@ import Image from "next/image";
 
 import { ArtifactCanvas } from "@/components/studio/artifact-canvas";
 import { StudioSidebar } from "@/components/studio/sidebar";
+import { WorkflowHarnessDialog } from "@/components/studio/workflow-harness-dialog";
 import { studioDesignSystems } from "@/lib/mock-data";
 import type {
   AgentProvider,
@@ -23,8 +26,14 @@ import type {
   GeneratedPack,
   HarnessEvent,
   HarnessWorkflow,
+  WorkflowId,
 } from "@/lib/agent-harness";
 import type { ProductPack } from "@/lib/product-pack";
+import {
+  getPresetWorkflowDefinition,
+  presetWorkflowDefinitions,
+  type WorkflowDefinition,
+} from "@/lib/workflow-harness";
 import { cn } from "@/lib/utils";
 
 const fallbackProviders: AgentProvider[] = [
@@ -37,7 +46,7 @@ const fallbackProviders: AgentProvider[] = [
       streaming: true,
     },
     command: "in-process",
-    displayName: "Mock PM Agent",
+    displayName: "Mock PM Studio",
     id: "mock",
     status: "available",
   },
@@ -97,40 +106,288 @@ type DemoProject = {
 const localProjectsStorageKey = "pmstudio:demo-projects:v1";
 const localActiveProjectStorageKey = "pmstudio:active-project-id:v1";
 
-function TopbarPicker({
-  label,
-  value,
+const designSystemOptions = [
+  {
+    description: "紧凑、清晰、适合 PM Studio 的工作台和 artifact 预览。",
+    name: "Linear 风格 SaaS",
+    swatches: ["#111111", "#FFFFFF", "#12A7FF", "#34C759"],
+  },
+  {
+    description: "更少装饰、更强留白，用于评审型文档和公开演示。",
+    name: "Vercel 极简",
+    swatches: ["#000000", "#FAFAFA", "#666666", "#EAEAEA"],
+  },
+  {
+    description: "偏文档协作的柔和界面，适合 PRD、路线图和研究材料。",
+    name: "Notion AI",
+    swatches: ["#191919", "#FBFAF7", "#EDEAE2", "#2EAADC"],
+  },
+  {
+    description: "面向 B2B 决策场景，强调状态、权限、审阅和稳定交付。",
+    name: "企业级 B2B",
+    swatches: ["#111827", "#F8FAFC", "#2563EB", "#059669"],
+  },
+];
+
+function workflowOptionId(definition: WorkflowDefinition): WorkflowId {
+  return definition.workflowId ?? "idea-to-product-pack";
+}
+
+function getArtifactLabel(artifactId: string) {
+  const labels: Record<string, string> = {
+    "competitor-analysis": "竞品",
+    "core-features": "功能",
+    "executive-summary": "摘要",
+    "market-research": "调研",
+    personas: "画像",
+    positioning: "定位",
+    prd: "PRD",
+    "prototype-brief": "原型 brief",
+    "prototype-preview": "预览",
+    "prototype-structure": "IA",
+    roadmap: "路线图",
+    "target-users": "用户",
+    "user-flow": "User Flow",
+    "user-stories": "故事",
+  };
+
+  return labels[artifactId] ?? artifactId;
+}
+
+const workflowPickerOptions: Array<{
+  description: string;
+  id: WorkflowId;
+  outputs: string[];
+  title: string;
+}> = presetWorkflowDefinitions.map((definition) => ({
+  description: definition.description,
+  id: workflowOptionId(definition),
+  outputs: definition.outputArtifactIds.slice(0, 4).map(getArtifactLabel),
+  title: definition.name,
+}));
+
+function ChromePickerButton({
+  active,
+  children,
   icon,
+  label,
+  onClick,
+  value,
 }: {
+  active?: boolean;
+  children?: React.ReactNode;
   label: string;
+  onClick: () => void;
   value: string;
   icon: React.ReactNode;
 }) {
   return (
     <button
-      className="group inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/8 bg-white/60 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white hover:shadow-md"
+      aria-expanded={active}
+      aria-label={`${label}: ${value}`}
+      className={cn(
+        "group inline-flex h-10 min-w-0 items-center gap-2 rounded-xl border border-black/8 bg-white/70 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white hover:shadow-md",
+        active && "border-black/14 bg-white shadow-md",
+      )}
+      onClick={onClick}
       type="button"
     >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition group-hover:bg-neutral-950 group-hover:text-white">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 transition group-hover:bg-neutral-950 group-hover:text-white">
         {icon}
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block text-[10px] leading-none text-neutral-400">{label}</span>
         <span className="mt-0.5 block max-w-[118px] truncate font-medium text-neutral-800 xl:max-w-[150px]">
           {value}
         </span>
       </span>
-      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-hover:text-neutral-600" />
+      {children}
+      <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-neutral-400 transition", active && "rotate-180")} />
     </button>
+  );
+}
+
+function DesignSystemPicker({
+  onChange,
+  value,
+}: {
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const filteredOptions = designSystemOptions.filter((option) =>
+    option.name.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  const selected =
+    designSystemOptions.find((option) => option.name === value) ?? designSystemOptions[0];
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <ChromePickerButton
+        active={open}
+        icon={<Sparkles className="h-3.5 w-3.5" />}
+        label="设计系统"
+        onClick={() => setOpen((current) => !current)}
+        value={selected.name}
+      />
+      {open ? (
+        <div className="absolute left-1/2 z-50 mt-2 grid w-[440px] -translate-x-1/2 grid-cols-[180px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl">
+          <div className="border-r border-black/10 p-3">
+            <div className="mb-2 flex h-8 items-center gap-2 rounded-lg border border-black/10 bg-neutral-50 px-2 text-xs text-neutral-500">
+              <Search className="h-3.5 w-3.5" />
+              <input
+                className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-neutral-400"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索样式"
+                value={query}
+              />
+            </div>
+            <div className="space-y-1">
+              {filteredOptions.map((option) => (
+                <button
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs font-medium transition",
+                    selected.name === option.name
+                      ? "bg-neutral-950 text-white"
+                      : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
+                  )}
+                  key={option.name}
+                  onClick={() => {
+                    onChange(option.name);
+                    setOpen(false);
+                  }}
+                  type="button"
+                >
+                  <span className="truncate">{option.name}</span>
+                  {selected.name === option.name ? <Check className="h-3.5 w-3.5" /> : null}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="p-4">
+            <p className="text-xs font-semibold text-neutral-500">当前样式</p>
+            <p className="mt-1 text-sm font-semibold text-neutral-950">{selected.name}</p>
+            <p className="mt-2 text-xs leading-5 text-neutral-500">{selected.description}</p>
+            <div className="mt-4 grid grid-cols-4 gap-2">
+              {selected.swatches.map((swatch) => (
+                <span
+                  className="h-10 rounded-lg border border-black/10"
+                  key={swatch}
+                  style={{ backgroundColor: swatch }}
+                />
+              ))}
+            </div>
+            <div className="mt-4 rounded-xl border border-black/10 bg-[#fbfaf7] p-3">
+              <div className="h-2 w-20 rounded-full bg-neutral-950" />
+              <div className="mt-3 h-2 w-full rounded-full bg-neutral-200" />
+              <div className="mt-2 h-2 w-2/3 rounded-full bg-neutral-100" />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkflowPicker({
+  onChange,
+  value,
+}: {
+  onChange: (value: WorkflowId) => void;
+  value: WorkflowId;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected =
+    workflowPickerOptions.find((workflow) => workflow.id === value) ?? workflowPickerOptions[0];
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <ChromePickerButton
+        active={open}
+        icon={<GalleryVerticalEnd className="h-3.5 w-3.5" />}
+        label="工作流"
+        onClick={() => setOpen((current) => !current)}
+        value={selected.title}
+      />
+      {open ? (
+        <div className="absolute left-1/2 z-50 mt-2 w-[430px] -translate-x-1/2 overflow-hidden rounded-2xl border border-black/10 bg-white p-2 shadow-2xl">
+          {workflowPickerOptions.map((workflow) => (
+            <button
+              className={cn(
+                "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-xl p-3 text-left transition",
+                selected.id === workflow.id ? "bg-neutral-950 text-white" : "hover:bg-neutral-50",
+              )}
+              key={workflow.id}
+              onClick={() => {
+                onChange(workflow.id);
+                setOpen(false);
+              }}
+              type="button"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{workflow.title}</span>
+                <span
+                  className={cn(
+                    "mt-1 block text-xs leading-5",
+                    selected.id === workflow.id ? "text-white/68" : "text-neutral-500",
+                  )}
+                >
+                  {workflow.description}
+                </span>
+                <span className="mt-3 flex flex-wrap gap-1">
+                  {workflow.outputs.map((output) => (
+                    <span
+                      className={cn(
+                        "rounded-md border px-2 py-1 text-[11px]",
+                        selected.id === workflow.id
+                          ? "border-white/16 bg-white/10 text-white/78"
+                          : "border-black/10 bg-white text-neutral-500",
+                      )}
+                      key={output}
+                    >
+                      {output}
+                    </span>
+                  ))}
+                </span>
+              </span>
+              {selected.id === workflow.id ? <Check className="mt-1 h-4 w-4" /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 function getProviderStatusLabel(provider?: AgentProvider, loading?: boolean) {
   if (loading) return "检测中";
   if (!provider) return "未检测";
-  if (provider.status === "available") return "available";
+  if (provider.status === "available") return "可用";
 
-  return "dry-run";
+  return "Dry-run";
+}
+
+function getPermissionLabel(provider?: AgentProvider) {
+  if (!provider) return "无权限";
+  if (provider.capabilities.permissionMode === "strict") return "严格权限";
+  if (provider.capabilities.permissionMode === "permissive") return "宽松权限";
+
+  return "本地模拟";
 }
 
 function AgentProviderPicker({
@@ -146,56 +403,100 @@ function AgentProviderPicker({
   providers: AgentProvider[];
   value: AgentProviderId;
 }) {
+  const [open, setOpen] = useState(false);
   const currentProvider =
     providers.find((provider) => provider.id === value) ??
     fallbackProviders.find((provider) => provider.id === value);
   const statusLabel = getProviderStatusLabel(currentProvider, loading);
 
   return (
-    <div className="inline-flex items-center gap-1">
-      <label className="group relative inline-flex h-9 min-w-0 items-center gap-2 rounded-full border border-black/8 bg-white/60 px-3 text-left text-sm shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white hover:shadow-md">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition group-hover:bg-neutral-950 group-hover:text-white">
-          <Bot className="h-3.5 w-3.5" />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[10px] leading-none text-neutral-400">智能体</span>
-          <span className="mt-0.5 flex max-w-[142px] items-center gap-1.5 truncate font-medium text-neutral-800 xl:max-w-[170px]">
-            <span
-              className={cn(
-                "h-1.5 w-1.5 shrink-0 rounded-full",
-                currentProvider?.status === "available" ? "bg-emerald-500" : "bg-amber-400",
-                loading && "bg-neutral-300",
-              )}
-            />
-            <span className="truncate">{currentProvider?.displayName ?? value}</span>
-            <span className="shrink-0 text-[10px] font-medium text-neutral-400">
-              {statusLabel}
-            </span>
-          </span>
-        </span>
-        <select
-          aria-label="智能体"
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          onChange={(event) => onChange(event.target.value as AgentProviderId)}
-          value={value}
-        >
-          {providers.map((provider) => (
-            <option key={provider.id} value={provider.id}>
-              {provider.displayName} · {getProviderStatusLabel(provider)}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-neutral-400 transition group-hover:text-neutral-600" />
-      </label>
+    <div
+      className="relative inline-flex items-center gap-1"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <ChromePickerButton
+        active={open}
+        icon={<Bot className="h-3.5 w-3.5" />}
+        label="智能体"
+        onClick={() => setOpen((current) => !current)}
+        value={currentProvider?.displayName ?? value}
+      >
+        <span
+          className={cn(
+            "h-1.5 w-1.5 shrink-0 rounded-full",
+            currentProvider?.status === "available" ? "bg-emerald-500" : "bg-amber-400",
+            loading && "bg-neutral-300",
+          )}
+        />
+      </ChromePickerButton>
       <button
         aria-label="重新检测智能体"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/8 bg-white/60 text-neutral-500 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-neutral-950 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-black/8 bg-white/70 text-neutral-500 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-neutral-950 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
         disabled={loading}
         onClick={onRefresh}
         type="button"
       >
         <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
       </button>
+      {open ? (
+        <div className="absolute left-1/2 top-full z-50 mt-2 w-[430px] -translate-x-1/2 overflow-hidden rounded-2xl border border-black/10 bg-white p-2 shadow-2xl">
+          <div className="px-2 pb-2 pt-1 text-xs font-semibold text-neutral-500">
+            {statusLabel} · {getPermissionLabel(currentProvider)}
+          </div>
+          {providers.map((provider) => {
+            const active = provider.id === value;
+
+            return (
+              <button
+                className={cn(
+                  "grid w-full grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-xl p-3 text-left transition",
+                  active ? "bg-neutral-950 text-white" : "hover:bg-neutral-50",
+                )}
+                key={provider.id}
+                onClick={() => {
+                  onChange(provider.id);
+                  setOpen(false);
+                }}
+                type="button"
+              >
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        provider.status === "available" ? "bg-emerald-500" : "bg-amber-400",
+                      )}
+                    />
+                    {provider.displayName}
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-1 block text-xs leading-5",
+                      active ? "text-white/68" : "text-neutral-500",
+                    )}
+                  >
+                    {getProviderStatusLabel(provider)} · {getPermissionLabel(provider)} ·{" "}
+                    {provider.capabilities.streaming ? "Streaming" : "Batch"}
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-2 block truncate text-[11px]",
+                      active ? "text-white/45" : "text-neutral-400",
+                    )}
+                  >
+                    {provider.command}
+                  </span>
+                </span>
+                {active ? <Check className="mt-1 h-4 w-4" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -236,7 +537,18 @@ export function StudioShell({
   );
   const [creatingProject, setCreatingProject] = useState(false);
   const projectTitle = shellProductPack?.project.title ?? "FinSight 智能投研工作台";
-  const workflowTitle = activeWorkflow?.title ?? "Idea-to-Product Pack";
+  const [selectedDesignSystem, setSelectedDesignSystem] = useState(
+    studioDesignSystems[0] ?? designSystemOptions[0].name,
+  );
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<WorkflowId>(
+    activeWorkflow?.id ?? "idea-to-product-pack",
+  );
+  const [selectedWorkflowDefinition, setSelectedWorkflowDefinition] = useState<WorkflowDefinition>(
+    () =>
+      getPresetWorkflowDefinition(activeWorkflow?.id ?? "idea-to-product-pack") ??
+      presetWorkflowDefinitions[0]!,
+  );
+  const [workflowHarnessOpen, setWorkflowHarnessOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
   const [providers, setProviders] = useState<AgentProvider[]>(fallbackProviders);
   const [providersLoading, setProvidersLoading] = useState(true);
@@ -325,6 +637,16 @@ export function StudioShell({
     });
   }, [upsertProject]);
 
+  const handleWorkflowChange = useCallback((workflowId: WorkflowId) => {
+    setSelectedWorkflowId(workflowId);
+
+    const nextDefinition = getPresetWorkflowDefinition(workflowId);
+
+    if (nextDefinition) {
+      setSelectedWorkflowDefinition(nextDefinition);
+    }
+  }, []);
+
   async function refreshProviders() {
     setProvidersLoading(true);
 
@@ -395,10 +717,6 @@ export function StudioShell({
     window.dispatchEvent(new CustomEvent("pmstudio:export-current-pack"));
   }
 
-  function handleFocusRunInput() {
-    window.dispatchEvent(new CustomEvent("pmstudio:focus-run-input"));
-  }
-
   async function handleCreateProject(idea: string) {
     setCreatingProject(true);
 
@@ -407,7 +725,8 @@ export function StudioShell({
         body: JSON.stringify({
           input: idea,
           providerId: selectedProvider,
-          workflowId: "idea-to-product-pack",
+          workflowId: selectedWorkflowId,
+          workflowDefinition: selectedWorkflowDefinition,
         }),
         headers: {
           "Content-Type": "application/json",
@@ -431,7 +750,7 @@ export function StudioShell({
   }
 
   return (
-    <main className="min-h-screen text-[#191919]">
+    <main className="flex h-screen min-h-0 flex-col overflow-hidden text-[#191919]">
       <header className="relative z-40 border-b border-black/8 bg-white/60 backdrop-blur-2xl">
         <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-5">
           {/* Left: Logo + Title */}
@@ -456,17 +775,26 @@ export function StudioShell({
           </div>
 
           {/* Center: Pickers */}
-          <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 px-4 lg:flex">
-            <TopbarPicker
-              icon={<Sparkles className="h-3.5 w-3.5" />}
-              label="设计系统"
-              value={studioDesignSystems[0]}
+          <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 px-4 xl:flex">
+            <DesignSystemPicker
+              onChange={setSelectedDesignSystem}
+              value={selectedDesignSystem}
             />
-            <TopbarPicker
-              icon={<GalleryVerticalEnd className="h-3.5 w-3.5" />}
-              label="工作流"
-              value={workflowTitle}
+            <WorkflowPicker
+              onChange={handleWorkflowChange}
+              value={selectedWorkflowId}
             />
+            <button
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-black/8 bg-white/70 px-3 text-sm font-medium text-neutral-700 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-neutral-950 hover:shadow-md"
+              onClick={() => setWorkflowHarnessOpen(true)}
+              type="button"
+            >
+              <GitBranchPlus className="h-4 w-4 text-[#12a7ff]" />
+              编排
+              <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] text-neutral-500">
+                {selectedWorkflowDefinition.steps.filter((step) => step.enabled).length}
+              </span>
+            </button>
             <AgentProviderPicker
               loading={providersLoading}
               onChange={setSelectedProvider}
@@ -493,19 +821,24 @@ export function StudioShell({
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">导出</span>
             </button>
-            <button
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-neutral-950 px-4 text-sm font-medium text-white shadow-lg shadow-neutral-900/20 transition hover:-translate-y-0.5 hover:bg-black hover:shadow-xl hover:shadow-neutral-900/25"
-              onClick={handleFocusRunInput}
-              type="button"
-            >
-              <Play className="h-4 w-4" />
-              <span className="hidden sm:inline">运行生成</span>
-            </button>
           </div>
         </div>
       </header>
 
-      <div className="grid min-h-screen grid-cols-1">
+      <WorkflowHarnessDialog
+        key={`${selectedWorkflowDefinition.id}:${selectedWorkflowDefinition.updatedAt}:${workflowHarnessOpen}`}
+        onApply={(definition) => {
+          const workflowId = definition.workflowId ?? selectedWorkflowId;
+          setSelectedWorkflowDefinition(definition);
+          setSelectedWorkflowId(workflowId);
+        }}
+        onClose={() => setWorkflowHarnessOpen(false)}
+        open={workflowHarnessOpen}
+        providerId={selectedProvider}
+        selectedDefinition={selectedWorkflowDefinition}
+      />
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden">
         <aside className="hidden border-r border-[#eeeeee] bg-white/72">
           <div className="sticky top-0 h-screen overflow-y-auto">
             <StudioSidebar
@@ -541,6 +874,7 @@ export function StudioShell({
             onProductPackChange={handleProductPackChange}
             productPack={shellProductPack}
             providerId={selectedProvider}
+            workflowDefinition={selectedWorkflowDefinition}
           />
         </section>
       </div>
