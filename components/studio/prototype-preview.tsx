@@ -23,10 +23,12 @@ import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
 const viewports = [
-  { label: "桌面", param: "desktop", icon: Monitor, width: 1024, height: 550, size: "1200px" },
-  { label: "平板", param: "tablet", icon: Tablet, width: 820, height: 700, size: "820px" },
-  { label: "手机", param: "mobile", icon: Smartphone, width: 390, height: 750, size: "390px" },
+  { label: "桌面", param: "desktop", icon: Monitor, width: 1200, height: 720, size: "1200px" },
+  { label: "平板", param: "tablet", icon: Tablet, width: 820, height: 1180, size: "820px" },
+  { label: "手机", param: "mobile", icon: Smartphone, width: 390, height: 844, size: "390px" },
 ];
+
+const previewChromeHeight = 40;
 
 function getViewportFromParam(viewport?: string) {
   return viewports.find((item) => item.param === viewport) ?? viewports[0];
@@ -325,14 +327,11 @@ export function StudioPrototypePreview({
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  let scale = 1;
-  if (selectedViewport.param !== "desktop" && canvasWidth) {
-    const padding = 32;
-    const availableWidth = canvasWidth - padding;
-    if (availableWidth < selectedViewport.width) {
-      scale = availableWidth / selectedViewport.width;
-    }
-  }
+  const canvasPadding = selectedViewport.param === "mobile" ? 24 : 48;
+  const availableCanvasWidth = canvasWidth ? Math.max(1, canvasWidth - canvasPadding) : selectedViewport.width;
+  const scale = Math.min(1, availableCanvasWidth / selectedViewport.width);
+  const scaledFrameWidth = Math.round(selectedViewport.width * scale);
+  const scaledFrameHeight = Math.round((selectedViewport.height + previewChromeHeight) * scale);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -555,17 +554,45 @@ export function StudioPrototypePreview({
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_340px] divide-y lg:divide-y-0 lg:divide-x divide-neutral-200">
+      <div
+        className={cn(
+          "grid divide-y divide-neutral-200",
+          isEditing
+            ? "lg:grid-cols-[minmax(0,1fr)_340px] lg:divide-x lg:divide-y-0"
+            : "grid-cols-1",
+        )}
+      >
         {/* Sandbox Canvas */}
         <div
           ref={canvasRef}
-          className="overflow-x-hidden bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.04),transparent_32%),linear-gradient(135deg,#f3f4f6,#ffffff)] p-3 sm:p-5 flex items-center justify-center min-h-[500px]"
+          className="flex items-start justify-center overflow-auto bg-[linear-gradient(45deg,rgba(221,221,221,0.42)_25%,transparent_25%),linear-gradient(-45deg,rgba(221,221,221,0.42)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,rgba(221,221,221,0.42)_75%),linear-gradient(-45deg,transparent_75%,rgba(221,221,221,0.42)_75%)] bg-[length:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] bg-neutral-100 p-3 sm:p-6"
+          style={{
+            height: "clamp(420px, calc(100vh - 420px), 600px)",
+          }}
         >
-          {selectedViewport.param === "desktop" ? (
+          <div
+            style={{
+              width: `${scaledFrameWidth}px`,
+              height: `${scaledFrameHeight}px`,
+            }}
+            className={cn(
+              "relative flex-none overflow-hidden border border-neutral-300 bg-white shadow-2xl shadow-black/20 transition-[width,height] duration-300 ease-out",
+              selectedViewport.param === "mobile" ? "rounded-[28px]" : "rounded-[18px]",
+            )}
+          >
             <div
-              className="min-w-0 w-full max-w-5xl transition-all duration-500 ease-out shadow-2xl rounded-2xl border border-neutral-300 overflow-hidden bg-white"
+              style={{
+                width: `${selectedViewport.width}px`,
+                height: `${selectedViewport.height + previewChromeHeight}px`,
+                transform: `scale(${scale})`,
+                transformOrigin: "top left",
+              }}
+              className="absolute left-0 top-0 flex flex-col bg-white"
             >
-              <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50 px-4 py-2.5">
+              <div
+                className="flex shrink-0 items-center justify-between border-b border-neutral-200 bg-neutral-50 px-4 py-2.5"
+                style={{ height: previewChromeHeight }}
+              >
                 <div className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
@@ -576,51 +603,15 @@ export function StudioPrototypePreview({
               <iframe
                 ref={iframeRef}
                 srcDoc={sandboxHtml}
-                className="w-full h-[550px] border-none bg-white"
+                style={{
+                  width: `${selectedViewport.width}px`,
+                  height: `${selectedViewport.height}px`,
+                }}
+                className="border-none bg-white"
                 sandbox="allow-scripts"
               />
             </div>
-          ) : (
-            <div
-              style={{
-                width: `${selectedViewport.width * scale}px`,
-                height: `${(selectedViewport.height + 40) * scale}px`,
-                position: "relative",
-                overflow: "hidden",
-                transition: "width 0.3s ease-out, height 0.3s ease-out",
-              }}
-              className="shadow-2xl rounded-2xl border border-neutral-300 bg-white"
-            >
-              <div
-                style={{
-                  width: `${selectedViewport.width}px`,
-                  height: `${selectedViewport.height + 40}px`,
-                  transform: `scale(${scale})`,
-                  transformOrigin: "top left",
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                }}
-                className="flex flex-col bg-white"
-              >
-                <div className="flex items-center justify-between border-b border-neutral-200 bg-neutral-50 px-4 py-2.5 shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
-                  </div>
-                  <span className="text-xs font-mono text-neutral-400">{getPreviewDomain(pack)}</span>
-                </div>
-                <iframe
-                  ref={iframeRef}
-                  srcDoc={sandboxHtml}
-                  style={{ width: `${selectedViewport.width}px`, height: `${selectedViewport.height}px` }}
-                  className="border-none bg-white grow"
-                  sandbox="allow-scripts"
-                />
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Visual / Text Element Inspector */}
@@ -963,9 +954,9 @@ export function StudioPrototypePreview({
         )}
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto border-t border-neutral-200 bg-white p-4 sm:justify-end">
+      <div className="flex flex-wrap items-center gap-2 border-t border-neutral-200 bg-white p-4 sm:justify-end">
         <button
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:flex-none"
           onClick={onRegenerate}
           type="button"
         >
@@ -973,7 +964,7 @@ export function StudioPrototypePreview({
           重新生成
         </button>
         <button
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 sm:flex-none"
           onClick={onEditPrompt}
           type="button"
         >
@@ -982,7 +973,7 @@ export function StudioPrototypePreview({
         </button>
         {onExportHtml ? (
           <button
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-neutral-400"
+            className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-neutral-400 sm:flex-none"
             disabled={isExporting}
             onClick={onExportHtml}
             type="button"
@@ -992,7 +983,7 @@ export function StudioPrototypePreview({
           </button>
         ) : exportHref ? (
           <a
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black"
+            className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black sm:flex-none"
             href={exportHref}
           >
             <Code2 className="h-4 w-4" />
@@ -1000,7 +991,7 @@ export function StudioPrototypePreview({
           </a>
         ) : (
           <button
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black"
+            className="inline-flex h-9 min-w-36 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black sm:flex-none"
             type="button"
           >
             <Code2 className="h-4 w-4" />
