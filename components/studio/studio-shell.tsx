@@ -505,8 +505,8 @@ export function StudioShell({
         </div>
       </header>
 
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="hidden border-r border-[#eeeeee] bg-white/72 lg:block">
+      <div className="grid min-h-screen grid-cols-1">
+        <aside className="hidden border-r border-[#eeeeee] bg-white/72">
           <div className="sticky top-0 h-screen overflow-y-auto">
             <StudioSidebar
               activeProjectId={activeProjectId}
@@ -526,7 +526,7 @@ export function StudioShell({
         </aside>
 
         <section className="min-w-0">
-          <div className="border-b border-[#eeeeee] bg-white/70 px-4 py-3 lg:hidden">
+          <div className="hidden border-b border-[#eeeeee] bg-white/70 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <FileText className="h-4 w-4 text-[#12a7ff]" />
               {projectTitle}

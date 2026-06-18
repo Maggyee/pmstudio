@@ -54,6 +54,8 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Workspace sidebar now supports browser-local demo projects: users can create a new project from an idea, run the selected provider, and switch between generated projects during a live demo.
 - Server runner now supports controlled cloud CLI execution for both Codex and Claude Code when `PMSTUDIO_ENABLE_CLOUD_AGENTS=1` is set.
 - Cloud agent deployment notes added under `docs/engineering/cloud-agent-deployment.md`.
+- `/app` workspace now follows OpenDesign's opened-file model: Product Pack artifacts are surfaced as design files, opened in tabs, previewed in the center, edited through a right-side inspector, and exported from the active file.
+- The old artifact summary/card-heavy workspace surface has been removed from the main app view in favor of a lean file tree, file viewer, inspector, and bottom run composer.
 
 ## In Progress
 

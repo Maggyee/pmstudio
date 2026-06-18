@@ -1,18 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   ArrowUp,
+  Braces,
   Download,
   Eye,
   FileCode2,
+  FileJson,
   FileText,
+  Folder,
   Layers3,
   Loader2,
   MessageSquareText,
   MoreHorizontal,
-  MousePointer2,
   Pencil,
   Presentation,
   RotateCcw,
@@ -23,7 +24,6 @@ import {
 } from "lucide-react";
 
 import { AgentPanel } from "@/components/studio/agent-panel";
-import { ProductPackSummary } from "@/components/studio/product-pack-summary";
 import { PrdPreview } from "@/components/studio/prd-preview";
 import { PrdPrototypeMap } from "@/components/prd-prototype-map";
 import { ResearchPreview } from "@/components/studio/research-preview";
@@ -677,6 +677,273 @@ const demoPromptPresets = [
   },
 ];
 
+type StudioFileKind = "deck" | "html" | "json" | "markdown";
+
+type StudioFile = {
+  artifactId: string;
+  description: string;
+  editable: boolean;
+  id: string;
+  kind: StudioFileKind;
+  name: string;
+  section: "Artifacts" | "Prototype" | "Research" | "Workspace";
+  tab: (typeof studioTabs)[number];
+  updatedAt: string;
+};
+
+const fileIdByTab: Record<(typeof studioTabs)[number], string> = {
+  PRD: "artifacts/PRD.md",
+  原型: "prototype/index.html",
+  调研: "research/market.md",
+  竞品: "research/competitors.md",
+  画像: "research/personas.md",
+  路线图: "planning/roadmap.pptx",
+  总结: "README.md",
+};
+
+function getFileIdForArtifact(artifact?: string) {
+  return fileIdByTab[getTabFromArtifactParam(artifact)];
+}
+
+function getStudioFiles(pack: ProductPack): StudioFile[] {
+  return [
+    {
+      artifactId: "product-pack",
+      description: pack.project.oneLiner,
+      editable: true,
+      id: "README.md",
+      kind: "markdown",
+      name: "README.md",
+      section: "Workspace",
+      tab: "总结",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "prd",
+      description: pack.prd.objective,
+      editable: true,
+      id: "artifacts/PRD.md",
+      kind: "markdown",
+      name: "PRD.md",
+      section: "Artifacts",
+      tab: "PRD",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "prototype",
+      description: pack.prototype.userFlow,
+      editable: true,
+      id: "prototype/index.html",
+      kind: "html",
+      name: "index.html",
+      section: "Prototype",
+      tab: "原型",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "prototype",
+      description: "Prototype data, screen goals, PRD links, and OpenDesign prompt.",
+      editable: true,
+      id: "prototype/data.json",
+      kind: "json",
+      name: "data.json",
+      section: "Prototype",
+      tab: "原型",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "research",
+      description: pack.research.marketOpportunity[0]?.detail ?? "Market opportunity notes.",
+      editable: true,
+      id: "research/market.md",
+      kind: "markdown",
+      name: "market.md",
+      section: "Research",
+      tab: "调研",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "competitors",
+      description: "Competitor matrix and opportunity gaps.",
+      editable: true,
+      id: "research/competitors.md",
+      kind: "markdown",
+      name: "competitors.md",
+      section: "Research",
+      tab: "竞品",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "personas",
+      description: "Primary personas, goals, and pains.",
+      editable: true,
+      id: "research/personas.md",
+      kind: "markdown",
+      name: "personas.md",
+      section: "Research",
+      tab: "画像",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "roadmap",
+      description: "MVP, next, and later delivery plan.",
+      editable: true,
+      id: "planning/roadmap.pptx",
+      kind: "deck",
+      name: "roadmap.pptx",
+      section: "Artifacts",
+      tab: "路线图",
+      updatedAt: pack.generatedAt,
+    },
+    {
+      artifactId: "executive-summary",
+      description: pack.summary.headline,
+      editable: true,
+      id: "planning/executive-summary.md",
+      kind: "markdown",
+      name: "executive-summary.md",
+      section: "Artifacts",
+      tab: "总结",
+      updatedAt: pack.generatedAt,
+    },
+  ];
+}
+
+function formatFileTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "just now";
+
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function fileKindLabel(kind: StudioFileKind) {
+  const labels: Record<StudioFileKind, string> = {
+    deck: "Deck",
+    html: "HTML",
+    json: "JSON",
+    markdown: "Markdown",
+  };
+
+  return labels[kind];
+}
+
+function StudioFileIcon({ file }: { file: StudioFile }) {
+  if (file.kind === "html") return <FileCode2 className="h-4 w-4" />;
+  if (file.kind === "json") return <FileJson className="h-4 w-4" />;
+  if (file.kind === "deck") return <Presentation className="h-4 w-4" />;
+
+  return <FileText className="h-4 w-4" />;
+}
+
+function markdownList(items: string[]) {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function renderStudioFileSource(file: StudioFile, pack: ProductPack) {
+  if (file.id === "prototype/data.json") {
+    return JSON.stringify(
+      {
+        project: pack.project,
+        prototype: pack.prototype,
+      },
+      null,
+      2,
+    );
+  }
+
+  if (file.tab === "PRD") {
+    return [
+      `# ${pack.project.title} PRD`,
+      "",
+      `Objective: ${pack.prd.objective}`,
+      "",
+      "## Core Features",
+      markdownList(pack.prd.coreFeatures),
+      "",
+      "## MVP Scope",
+      markdownList(pack.prd.mvpScope),
+      "",
+      "## Success Metrics",
+      markdownList(pack.prd.successMetrics),
+    ].join("\n");
+  }
+
+  if (file.tab === "原型") {
+    return [
+      "<!-- PM Studio prototype source -->",
+      `<!-- Live artifact: ${pack.prototype.liveArtifact.id} -->`,
+      "",
+      pack.prototype.openDesignPrompt,
+    ].join("\n");
+  }
+
+  if (file.tab === "调研") {
+    return [
+      `# ${pack.project.title} Market Research`,
+      "",
+      ...pack.research.marketOpportunity.flatMap((item) => [
+        `## ${item.label}: ${item.value}`,
+        item.detail,
+        "",
+      ]),
+      "## Insights",
+      markdownList(pack.research.insights),
+    ].join("\n");
+  }
+
+  if (file.tab === "竞品") {
+    return [
+      `# ${pack.project.title} Competitors`,
+      "",
+      "| Competitor | Positioning | Strength | Weakness | Opportunity |",
+      "| --- | --- | --- | --- | --- |",
+      ...pack.competitors.map(
+        (item) =>
+          `| ${item.competitor} | ${item.positioning} | ${item.strength} | ${item.weakness} | ${item.opportunity} |`,
+      ),
+    ].join("\n");
+  }
+
+  if (file.tab === "画像") {
+    return pack.personas
+      .map((persona) =>
+        [
+          `# ${persona.name}`,
+          "",
+          `Role: ${persona.role}`,
+          `Goal: ${persona.goal}`,
+          `Pain: ${persona.pain}`,
+        ].join("\n"),
+      )
+      .join("\n\n");
+  }
+
+  if (file.tab === "路线图") {
+    return pack.roadmap
+      .map((column) => [`# ${column.horizon}`, "", markdownList(column.items)].join("\n"))
+      .join("\n\n");
+  }
+
+  return [
+    `# ${pack.project.title}`,
+    "",
+    pack.summary.headline,
+    "",
+    "## Positioning",
+    pack.project.positioning,
+    "",
+    "## Value Proposition",
+    pack.project.valueProposition,
+    "",
+    "## Next Actions",
+    markdownList(pack.summary.nextActions),
+  ].join("\n");
+}
+
 function getRunModeLabel(mode?: AgentRunMode) {
   const labels: Record<AgentRunMode, string> = {
     "api-fallback-dry-run": "API dry-run",
@@ -801,6 +1068,397 @@ function buildOpenDesignHandoffJson(pack: ProductPack) {
   );
 }
 
+function StudioFileTree({
+  activeFileId,
+  files,
+  openFileIds,
+  onOpenFile,
+}: {
+  activeFileId: string;
+  files: StudioFile[];
+  openFileIds: string[];
+  onOpenFile: (fileId: string) => void;
+}) {
+  const sections: StudioFile["section"][] = ["Workspace", "Artifacts", "Prototype", "Research"];
+
+  return (
+    <div className="hidden h-full min-h-0 flex-col bg-white/74 lg:flex">
+      <div className="border-b border-black/10 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-neutral-950">
+          <Folder className="h-4 w-4 text-[#12a7ff]" />
+          Design files
+        </div>
+        <p className="mt-1 text-xs leading-5 text-neutral-500">
+          打开文件后在右侧 inspector 修改内容，保持 Product Pack 和导出同步。
+        </p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {sections.map((section) => {
+          const sectionFiles = files.filter((file) => file.section === section);
+
+          if (!sectionFiles.length) return null;
+
+          return (
+            <section className="mb-5" key={section}>
+              <div className="mb-2 flex items-center justify-between px-2 text-[11px] font-semibold uppercase text-neutral-400">
+                <span>{section}</span>
+                <span>{sectionFiles.length}</span>
+              </div>
+              <div className="space-y-1">
+                {sectionFiles.map((file) => {
+                  const active = file.id === activeFileId;
+                  const open = openFileIds.includes(file.id);
+
+                  return (
+                    <button
+                      className={cn(
+                        "group grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-2 text-left transition",
+                        active
+                          ? "bg-neutral-950 text-white shadow-sm"
+                          : "text-neutral-700 hover:bg-neutral-100",
+                      )}
+                      key={file.id}
+                      onClick={() => onOpenFile(file.id)}
+                      type="button"
+                    >
+                      <span
+                        className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-md",
+                          active ? "bg-white/12 text-white" : "bg-neutral-100 text-neutral-500",
+                        )}
+                      >
+                        <StudioFileIcon file={file} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{file.name}</span>
+                        <span
+                          className={cn(
+                            "mt-0.5 block truncate text-[11px]",
+                            active ? "text-white/58" : "text-neutral-400",
+                          )}
+                        >
+                          {fileKindLabel(file.kind)} · {formatFileTime(file.updatedAt)}
+                        </span>
+                      </span>
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          open ? "bg-emerald-400" : "bg-transparent group-hover:bg-neutral-300",
+                        )}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function OpenFileTabs({
+  activeFileId,
+  files,
+  onCloseFile,
+  onOpenFile,
+}: {
+  activeFileId: string;
+  files: StudioFile[];
+  onCloseFile: (fileId: string) => void;
+  onOpenFile: (fileId: string) => void;
+}) {
+  return (
+    <div className="flex min-w-0 items-end gap-1 overflow-x-auto border-b border-black/10 bg-[#f5f5f1]/78 px-2 pt-2">
+      {files.map((file) => {
+        const active = file.id === activeFileId;
+
+        return (
+          <div
+            className={cn(
+              "group flex h-9 min-w-[148px] max-w-[230px] items-center gap-2 rounded-t-lg border border-b-0 px-3 text-sm transition",
+              active
+                ? "border-black/10 bg-white text-neutral-950 shadow-sm"
+                : "border-transparent bg-transparent text-neutral-500 hover:bg-white/70 hover:text-neutral-950",
+            )}
+            key={file.id}
+          >
+            <button
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              onClick={() => onOpenFile(file.id)}
+              type="button"
+            >
+              <StudioFileIcon file={file} />
+              <span className="truncate">{file.name}</span>
+            </button>
+            {files.length > 1 ? (
+              <button
+                aria-label={`Close ${file.name}`}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-neutral-400 opacity-0 transition hover:bg-neutral-100 hover:text-neutral-950 group-hover:opacity-100"
+                onClick={() => onCloseFile(file.id)}
+                type="button"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SourceViewer({ file, productPack }: { file: StudioFile; productPack: ProductPack }) {
+  return (
+    <pre className="min-h-[560px] overflow-auto rounded-xl border border-black/10 bg-[#111111] p-4 text-xs leading-5 text-white/82">
+      <code>{renderStudioFileSource(file, productPack)}</code>
+    </pre>
+  );
+}
+
+function FilePreviewSurface({
+  activeMode,
+  activeViewport,
+  file,
+  isPrototypeExporting,
+  onChange,
+  onExportAction,
+  onSwitchMode,
+  productPack,
+}: {
+  activeMode: "生成" | "修改" | "源码" | "预览";
+  activeViewport?: string;
+  file: StudioFile;
+  isPrototypeExporting?: boolean;
+  onChange: (productPack: ProductPack) => void;
+  onExportAction: (action: ArtifactAction) => void;
+  onSwitchMode: (mode: "生成" | "修改" | "源码" | "预览") => void;
+  productPack: ProductPack;
+}) {
+  if (activeMode === "源码" || file.id === "prototype/data.json") {
+    return <SourceViewer file={file} productPack={productPack} />;
+  }
+
+  return (
+    <ArtifactView
+      activeTab={file.tab}
+      activeViewport={activeViewport}
+      isPrototypeExporting={isPrototypeExporting}
+      isEditing={activeMode === "修改"}
+      onEditPrototypePrompt={() => onSwitchMode("修改")}
+      onExportPrototypeHtml={() =>
+        onExportAction({
+          artifactId: "prototype",
+          format: "html",
+          label: "导出 HTML",
+        })
+      }
+      onRequestGenerate={() => onSwitchMode("生成")}
+      productPack={productPack}
+      onChange={onChange}
+    />
+  );
+}
+
+function FileInspector({
+  activeMode,
+  agentEvents,
+  file,
+  onChange,
+  onReset,
+  productPack,
+  runHistory,
+}: {
+  activeMode: "生成" | "修改" | "源码" | "预览";
+  agentEvents?: HarnessEvent[];
+  file: StudioFile;
+  onChange: (productPack: ProductPack) => void;
+  onReset: () => void;
+  productPack: ProductPack;
+  runHistory: AgentRunHistoryItem[];
+}) {
+  function update(updater: (productPack: ProductPack) => ProductPack) {
+    onChange(updater(productPack));
+  }
+
+  return (
+    <aside className="hidden h-full min-h-0 flex-col border-l border-black/10 bg-white/76 lg:flex">
+      <div className="border-b border-black/10 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-neutral-950">{file.name}</p>
+            <p className="mt-1 truncate text-xs text-neutral-500">{file.id}</p>
+          </div>
+          <span className="rounded-md border border-black/10 bg-neutral-50 px-2 py-1 text-[11px] font-medium text-neutral-500">
+            {activeMode}
+          </span>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <section className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">
+          <div className="mb-1 flex items-center gap-2 font-semibold">
+            <Save className="h-3.5 w-3.5" />
+            自动保存
+          </div>
+          修改会立即写回当前 Product Pack，并影响预览、handoff 和导出文件。
+        </section>
+
+        {file.tab === "PRD" ? (
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-xs font-semibold text-neutral-500">PRD 目标</span>
+              <textarea
+                className="mt-2 min-h-24 w-full resize-y rounded-lg border border-black/10 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                onChange={(event) =>
+                  update((pack) => ({
+                    ...pack,
+                    prd: { ...pack.prd, objective: event.target.value },
+                  }))
+                }
+                value={productPack.prd.objective}
+              />
+            </label>
+            <EditableListField
+              label="核心功能"
+              onChange={(coreFeatures) =>
+                update((pack) => ({
+                  ...pack,
+                  prd: { ...pack.prd, coreFeatures },
+                }))
+              }
+              value={productPack.prd.coreFeatures}
+            />
+            <EditableListField
+              label="成功指标"
+              onChange={(successMetrics) =>
+                update((pack) => ({
+                  ...pack,
+                  prd: { ...pack.prd, successMetrics },
+                }))
+              }
+              value={productPack.prd.successMetrics}
+            />
+          </div>
+        ) : null}
+
+        {file.tab === "原型" ? (
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-xs font-semibold text-neutral-500">用户流程</span>
+              <textarea
+                className="mt-2 min-h-20 w-full resize-y rounded-lg border border-black/10 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                onChange={(event) =>
+                  update((pack) => ({
+                    ...pack,
+                    prototype: { ...pack.prototype, userFlow: event.target.value },
+                  }))
+                }
+                value={productPack.prototype.userFlow}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-neutral-500">OpenDesign prompt</span>
+              <textarea
+                className="mt-2 min-h-28 w-full resize-y rounded-lg border border-black/10 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                onChange={(event) =>
+                  update((pack) => ({
+                    ...pack,
+                    prototype: { ...pack.prototype, openDesignPrompt: event.target.value },
+                  }))
+                }
+                value={productPack.prototype.openDesignPrompt}
+              />
+            </label>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-neutral-500">Screens</p>
+              {productPack.prototype.screens.map((screen, index) => (
+                <label className="block rounded-lg border border-black/10 bg-neutral-50 p-3" key={screen.name}>
+                  <span className="text-xs font-semibold text-neutral-800">{screen.name}</span>
+                  <textarea
+                    className="mt-2 min-h-16 w-full resize-y rounded-md border border-black/10 bg-white px-2 py-2 text-xs leading-5 outline-none focus:border-[#12a7ff]"
+                    onChange={(event) =>
+                      update((pack) => ({
+                        ...pack,
+                        prototype: {
+                          ...pack.prototype,
+                          screens: pack.prototype.screens.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, goal: event.target.value } : item,
+                          ),
+                        },
+                      }))
+                    }
+                    value={screen.goal}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {file.tab !== "PRD" && file.tab !== "原型" ? (
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-xs font-semibold text-neutral-500">产品定位</span>
+              <textarea
+                className="mt-2 min-h-24 w-full resize-y rounded-lg border border-black/10 bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                onChange={(event) =>
+                  update((pack) => ({
+                    ...pack,
+                    project: { ...pack.project, positioning: event.target.value },
+                  }))
+                }
+                value={productPack.project.positioning}
+              />
+            </label>
+            <EditableListField
+              label="摘要要点"
+              onChange={(bullets) =>
+                update((pack) => ({
+                  ...pack,
+                  summary: { ...pack.summary, bullets },
+                }))
+              }
+              value={productPack.summary.bullets}
+            />
+            <EditableListField
+              label="下一步"
+              onChange={(nextActions) =>
+                update((pack) => ({
+                  ...pack,
+                  summary: { ...pack.summary, nextActions },
+                }))
+              }
+              value={productPack.summary.nextActions}
+            />
+          </div>
+        ) : null}
+
+        <div className="mt-5">
+          <button
+            className="inline-flex h-8 items-center gap-2 rounded-lg border border-black/10 bg-white px-3 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100"
+            onClick={onReset}
+            type="button"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            恢复默认
+          </button>
+        </div>
+
+        <div className="mt-5 border-t border-black/10 pt-4">
+          <AgentPanel
+            events={agentEvents}
+            productPack={productPack}
+            runHistory={runHistory}
+            variant="floating"
+          />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export function ArtifactCanvas({
   activeArtifact,
   activeViewport,
@@ -818,8 +1476,8 @@ export function ArtifactCanvas({
   productPack?: ProductPack;
   providerId?: AgentProviderId;
 }) {
-  const activeTab = getTabFromArtifactParam(activeArtifact);
-  const [activeMode, setActiveMode] = useState<"生成" | "修改" | "预览">("生成");
+  const requestedFileId = getFileIdForArtifact(activeArtifact);
+  const [activeMode, setActiveMode] = useState<"生成" | "修改" | "源码" | "预览">("预览");
   const [currentEvents, setCurrentEvents] = useState(agentEvents);
   const [currentPack, setCurrentPack] = useState(
     productPack ?? buildFinSightProductPack(defaultFinSightIdea),
@@ -833,16 +1491,51 @@ export function ArtifactCanvas({
   const [intakeOutcome, setIntakeOutcome] = useState("");
   const [intakeConstraints, setIntakeConstraints] = useState("");
   const [runError, setRunError] = useState<string | null>(null);
+  const [activeFileId, setActiveFileId] = useState(requestedFileId);
+  const [openFileIds, setOpenFileIds] = useState<string[]>([requestedFileId]);
   const runInputRef = useRef<HTMLInputElement>(null);
-  const activeTabRef = useRef(activeTab);
+  const activeTabRef = useRef(getTabFromArtifactParam(activeArtifact));
   const currentPackRef = useRef(currentPack);
+  const studioFiles = getStudioFiles(currentPack);
+  const activeFile = studioFiles.find((file) => file.id === activeFileId) ?? studioFiles[0]!;
+  const openFiles = openFileIds
+    .map((fileId) => studioFiles.find((file) => file.id === fileId))
+    .filter((file): file is StudioFile => Boolean(file));
+  const activeTab = activeFile.tab;
   const projectTitle = currentPack.project.title;
   const artifactActions = getArtifactActions(activeTab, currentPack);
+
+  const openStudioFile = useCallback((fileId: string) => {
+    setOpenFileIds((currentFileIds) =>
+      currentFileIds.includes(fileId) ? currentFileIds : [...currentFileIds, fileId],
+    );
+    setActiveFileId(fileId);
+  }, []);
+
+  function closeStudioFile(fileId: string) {
+    setOpenFileIds((currentFileIds) => {
+      if (currentFileIds.length <= 1) return currentFileIds;
+
+      const nextFileIds = currentFileIds.filter((item) => item !== fileId);
+
+      if (fileId === activeFileId) {
+        setActiveFileId(nextFileIds[Math.max(0, currentFileIds.indexOf(fileId) - 1)] ?? nextFileIds[0]!);
+      }
+
+      return nextFileIds;
+    });
+  }
 
   useEffect(() => {
     activeTabRef.current = activeTab;
     currentPackRef.current = currentPack;
   }, [activeTab, currentPack]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => openStudioFile(requestedFileId), 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [openStudioFile, requestedFileId]);
 
   useEffect(() => {
     if (productPack) return;
@@ -1107,226 +1800,185 @@ export function ArtifactCanvas({
   }
 
   return (
-    <section className="min-h-screen bg-[#fbfaf7]/62">
-      <div className="relative z-50 flex flex-col gap-3 border-b border-black/10 bg-[#fbfaf7]/72 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex min-w-0 items-center gap-2">
-          <Layers3 className="h-4 w-4 text-neutral-500" />
-          <div className="min-w-0">
-            <p className="text-xs text-neutral-500">交付物画布</p>
-            <h1 className="truncate text-lg font-semibold">{projectTitle}</h1>
-          </div>
-        </div>
-        <div className="liquid-glass relative z-50 flex w-full max-w-full gap-1 overflow-x-auto rounded-full p-1 sm:w-auto">
-          {studioTabs.map((tab) => (
-            <Link
-              className={cn(
-                "pointer-events-auto relative z-50 inline-flex h-8 shrink-0 items-center rounded-full px-3 text-sm font-medium text-neutral-500 transition hover:bg-white/70 hover:text-neutral-950 active:scale-[0.98]",
-                activeTab === tab && "bg-white text-neutral-950 shadow-sm ring-1 ring-black/5",
-              )}
-              href={getArtifactHref(tab, activeViewport)}
-              key={tab}
-              role="tab"
-              aria-selected={activeTab === tab}
-              scroll={false}
-            >
-              {tab}
-            </Link>
-          ))}
-        </div>
-      </div>
+    <section className="flex min-h-screen flex-col bg-[#f5f5f1] text-[#111111] lg:h-[calc(100vh-56px)] lg:min-h-[780px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[260px_minmax(0,1fr)_340px]">
+        <StudioFileTree
+          activeFileId={activeFile.id}
+          files={studioFiles}
+          openFileIds={openFileIds}
+          onOpenFile={openStudioFile}
+        />
 
-      <div className="relative min-h-[980px] overflow-hidden bg-[linear-gradient(rgba(38,38,38,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(38,38,38,0.045)_1px,transparent_1px)] bg-[size:24px_24px] px-3 py-8 sm:px-5">
-        <div className="liquid-glass pointer-events-none absolute right-4 top-5 z-40 hidden rounded-full p-1 lg:flex 2xl:right-8">
-          <button
-            className={cn(
-              "pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition hover:bg-white active:scale-[0.98]",
-              activeMode === "生成"
-                ? "bg-white text-neutral-950 shadow-sm"
-                : "text-neutral-600 hover:text-black",
-            )}
-            onClick={() => setActiveMode("生成")}
-            type="button"
-          >
-            <Sparkles className="h-4 w-4" />
-            生成
-          </button>
-          <button
-            className={cn(
-              "pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition hover:bg-white active:scale-[0.98]",
-              activeMode === "修改"
-                ? "bg-white text-neutral-950 shadow-sm"
-                : "text-neutral-600 hover:text-black",
-            )}
-            onClick={() => setActiveMode("修改")}
-            type="button"
-          >
-            <Pencil className="h-4 w-4" />
-            修改
-          </button>
-          <button
-            className={cn(
-              "pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-medium transition hover:bg-white active:scale-[0.98]",
-              activeMode === "预览"
-                ? "bg-white text-neutral-950 shadow-sm"
-                : "text-neutral-600 hover:text-black",
-            )}
-            onClick={() => setActiveMode("预览")}
-            type="button"
-          >
-            <Eye className="h-4 w-4" />
-            预览
-          </button>
-          <button
-            className="pointer-events-auto inline-flex h-8 items-center gap-2 rounded-full px-2 text-neutral-600 transition hover:bg-white hover:text-black active:scale-[0.98]"
-            type="button"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-        </div>
+        <main className="flex min-h-0 min-w-0 flex-col border-x border-black/10 bg-[#fbfaf7]">
+          <OpenFileTabs
+            activeFileId={activeFile.id}
+            files={openFiles.length ? openFiles : [activeFile]}
+            onCloseFile={closeStudioFile}
+            onOpenFile={openStudioFile}
+          />
 
-        <div className="pointer-events-none absolute right-4 top-36 z-30 hidden w-[290px] lg:block 2xl:right-8 2xl:w-[310px]">
-          <div className="pointer-events-none">
-            <AgentPanel
-              events={currentEvents}
-              productPack={currentPack}
-              runHistory={runHistory}
-              variant="floating"
-            />
-          </div>
-        </div>
-
-        <div className="mx-auto max-w-7xl">
-          <div className="min-w-0 space-y-6">
-            <ProductPackSummary productPack={currentPack} />
-
-            <div className="mx-auto min-w-0 max-w-5xl overflow-hidden rounded-[24px] border border-black/10 bg-white/72 shadow-2xl shadow-black/10 backdrop-blur">
-              <div className="flex items-center justify-between border-b border-neutral-200 bg-white/78 px-4 py-2 backdrop-blur">
-                <div className="flex items-center gap-2 text-xs font-medium text-neutral-500">
-                  <MousePointer2 className="h-4 w-4 text-neutral-500" />
-                  当前交付物
-                  <span className="rounded-full bg-neutral-950 px-2 py-1 text-white">
-                    {activeTab}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <header className="flex flex-col gap-3 border-b border-black/10 bg-white px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                    <StudioFileIcon file={activeFile} />
                   </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-neutral-950">{activeFile.id}</p>
+                    <p className="mt-0.5 truncate text-xs text-neutral-500">{activeFile.description}</p>
+                  </div>
                 </div>
               </div>
-              <div key={activeTab} className="min-w-0 bg-white/72 p-3 sm:p-6">
-                {activeMode === "修改" ? (
-                  <ArtifactEditPanel
-                    activeTab={activeTab}
-                    onChange={setCurrentPack}
-                    onReset={handleResetToDefault}
-                    productPack={currentPack}
-                  />
-                ) : null}
-                <ArtifactView
-                  activeTab={activeTab}
-                  activeViewport={activeViewport}
-                  isPrototypeExporting={exportingAction === "prototype:html"}
-                  isEditing={activeMode === "修改"}
-                  onEditPrototypePrompt={() => setActiveMode("修改")}
-                  onExportPrototypeHtml={() =>
-                    handleExportAction({
-                      artifactId: "prototype",
-                      format: "html",
-                      label: "导出 HTML",
-                    })
-                  }
-                  onRequestGenerate={() => setActiveMode("生成")}
-                  productPack={currentPack}
-                  onChange={setCurrentPack}
-                />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex rounded-lg border border-black/10 bg-neutral-50 p-1">
+                  {(["预览", "修改", "源码", "生成"] as const).map((mode) => (
+                    <button
+                      className={cn(
+                        "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition",
+                        activeMode === mode
+                          ? "bg-white text-neutral-950 shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-950",
+                      )}
+                      key={mode}
+                      onClick={() => setActiveMode(mode)}
+                      type="button"
+                    >
+                      {mode === "预览" ? <Eye className="h-3.5 w-3.5" /> : null}
+                      {mode === "修改" ? <Pencil className="h-3.5 w-3.5" /> : null}
+                      {mode === "源码" ? <Braces className="h-3.5 w-3.5" /> : null}
+                      {mode === "生成" ? <Sparkles className="h-3.5 w-3.5" /> : null}
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-1 overflow-x-auto">
+                  {artifactActions.map((action, index) => (
+                    <button
+                      className={cn(
+                        "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-medium shadow-sm transition",
+                        index === artifactActions.length - 1
+                          ? "border-neutral-950 bg-neutral-950 text-white hover:bg-black"
+                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                      )}
+                      disabled={exportingAction === [action.artifactId, action.format].join(":")}
+                      key={action.label}
+                      onClick={() => handleExportAction(action)}
+                      type="button"
+                    >
+                      <ActionIcon action={action} />
+                      {exportingAction === [action.artifactId, action.format].join(":") ? "导出中" : action.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </header>
 
-            <div className="mx-auto flex max-w-5xl gap-2 overflow-x-auto pb-2">
-              {artifactActions.map((action, index) => (
-                action.href ? (
-                  <a
-                    className={cn(
-                      "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium shadow-sm transition",
-                      "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                    )}
-                    href={action.href}
-                    key={action.label}
-                  >
-                    <ActionIcon action={action} />
-                    {action.label}
-                  </a>
-                ) : (
-                  <button
-                    className={cn(
-                      "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border px-3 text-sm font-medium shadow-sm transition",
-                      index === artifactActions.length - 1
-                        ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
-                        : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                    )}
-                    disabled={exportingAction === `${action.artifactId}:${action.format}`}
-                    key={action.label}
-                    onClick={() => handleExportAction(action)}
-                    type="button"
-                  >
-                    <ActionIcon action={action} />
-                    {exportingAction === `${action.artifactId}:${action.format}` ? "导出中" : action.label}
-                  </button>
-                )
-              ))}
+            <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-5">
+              <FilePreviewSurface
+                activeMode={activeMode}
+                activeViewport={activeViewport}
+                file={activeFile}
+                isPrototypeExporting={exportingAction === "prototype:html"}
+                onChange={setCurrentPack}
+                onExportAction={handleExportAction}
+                onSwitchMode={setActiveMode}
+                productPack={currentPack}
+              />
             </div>
           </div>
-        </div>
+        </main>
 
-        <form
-          className="liquid-glass sticky bottom-5 z-30 mx-auto mt-10 max-w-2xl rounded-[22px] p-3"
-          onSubmit={handleGenerate}
-        >
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="truncate px-2 text-xs font-medium text-neutral-500">
-              智能体：{getProviderLabel(providerId)}
-            </span>
-            <span className="px-2 text-xs font-medium text-neutral-500">
-              {getRunModeLabel(lastRunMode)}
-            </span>
-          </div>
-          {activeMode === "生成" ? (
-            <div className="mb-3 grid gap-2 px-1 sm:grid-cols-3">
-              <label className="block">
-                <span className="px-1 text-[11px] font-semibold text-neutral-500">目标用户</span>
-                <input
-                  className="mt-1 h-9 w-full rounded-xl border border-black/10 bg-white/65 px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
-                  disabled={isGenerating}
-                  onChange={(event) => setIntakeAudience(event.target.value)}
-                  placeholder="财富顾问 / 店长 / HR"
-                  type="text"
-                  value={intakeAudience}
-                />
-              </label>
-              <label className="block">
-                <span className="px-1 text-[11px] font-semibold text-neutral-500">成功结果</span>
-                <input
-                  className="mt-1 h-9 w-full rounded-xl border border-black/10 bg-white/65 px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
-                  disabled={isGenerating}
-                  onChange={(event) => setIntakeOutcome(event.target.value)}
-                  placeholder="缩短准备时间 / 提高转化"
-                  type="text"
-                  value={intakeOutcome}
-                />
-              </label>
-              <label className="block sm:col-span-1">
-                <span className="px-1 text-[11px] font-semibold text-neutral-500">约束条件</span>
-                <input
-                  className="mt-1 h-9 w-full rounded-xl border border-black/10 bg-white/65 px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
-                  disabled={isGenerating}
-                  onChange={(event) => setIntakeConstraints(event.target.value)}
-                  placeholder="MVP / 合规 / 2 周内"
-                  type="text"
-                  value={intakeConstraints}
-                />
-              </label>
+        <FileInspector
+          activeMode={activeMode}
+          agentEvents={currentEvents}
+          file={activeFile}
+          onChange={setCurrentPack}
+          onReset={handleResetToDefault}
+          productPack={currentPack}
+          runHistory={runHistory}
+        />
+      </div>
+
+      <form
+        className="border-t border-black/10 bg-white/86 px-3 py-3 backdrop-blur-xl"
+        onSubmit={handleGenerate}
+      >
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="min-w-0 flex-1">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="truncate text-xs font-medium text-neutral-500">
+                智能体：{getProviderLabel(providerId)} · {getRunModeLabel(lastRunMode)}
+              </span>
+              <span className="hidden text-xs text-neutral-400 sm:inline">
+                当前工作流：{getWorkflowIdForTab(activeTab)}
+              </span>
             </div>
-          ) : null}
-          <div className="mb-2 flex gap-1 overflow-x-auto px-8">
+            {activeMode === "生成" ? (
+              <div className="mb-2 grid gap-2 sm:grid-cols-3">
+                <label className="block">
+                  <span className="px-1 text-[11px] font-semibold text-neutral-500">目标用户</span>
+                  <input
+                    className="mt-1 h-9 w-full rounded-lg border border-black/10 bg-white px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                    disabled={isGenerating}
+                    onChange={(event) => setIntakeAudience(event.target.value)}
+                    placeholder="财富顾问 / 店长 / HR"
+                    type="text"
+                    value={intakeAudience}
+                  />
+                </label>
+                <label className="block">
+                  <span className="px-1 text-[11px] font-semibold text-neutral-500">成功结果</span>
+                  <input
+                    className="mt-1 h-9 w-full rounded-lg border border-black/10 bg-white px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                    disabled={isGenerating}
+                    onChange={(event) => setIntakeOutcome(event.target.value)}
+                    placeholder="缩短准备时间 / 提高转化"
+                    type="text"
+                    value={intakeOutcome}
+                  />
+                </label>
+                <label className="block">
+                  <span className="px-1 text-[11px] font-semibold text-neutral-500">约束条件</span>
+                  <input
+                    className="mt-1 h-9 w-full rounded-lg border border-black/10 bg-white px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                    disabled={isGenerating}
+                    onChange={(event) => setIntakeConstraints(event.target.value)}
+                    placeholder="MVP / 合规 / 2 周内"
+                    type="text"
+                    value={intakeConstraints}
+                  />
+                </label>
+              </div>
+            ) : null}
+            <div className="flex min-w-0 items-center gap-2 rounded-xl border border-black/10 bg-[#fbfaf7] p-2">
+              <input
+                className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-neutral-400"
+                disabled={isGenerating}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="输入产品想法，或选择一个 demo prompt 重新生成当前文件工作区..."
+                ref={runInputRef}
+                type="text"
+                value={prompt}
+              />
+              <button
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-neutral-950 px-4 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-neutral-400"
+                disabled={isGenerating}
+                type="submit"
+              >
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+                {isGenerating ? "生成中" : "运行"}
+              </button>
+            </div>
+            {runError ? <p className="mt-2 text-xs font-medium text-red-600">{runError}</p> : null}
+          </div>
+
+          <div className="flex shrink-0 gap-1 overflow-x-auto pb-1 lg:w-[280px]">
             {demoPromptPresets.map((preset) => (
               <button
-                className="h-7 shrink-0 rounded-full border border-black/8 bg-white/55 px-3 text-xs font-medium text-neutral-500 transition hover:bg-white hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-8 shrink-0 rounded-lg border border-black/10 bg-white px-3 text-xs font-medium text-neutral-500 transition hover:bg-neutral-50 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isGenerating}
                 key={preset.label}
                 onClick={() => {
@@ -1334,6 +1986,7 @@ export function ArtifactCanvas({
                   setIntakeAudience("");
                   setIntakeOutcome("");
                   setIntakeConstraints("");
+                  setActiveMode("生成");
                 }}
                 type="button"
               >
@@ -1341,28 +1994,8 @@ export function ArtifactCanvas({
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-3">
-            <MessageSquareText className="h-5 w-5 text-neutral-400" />
-            <input
-              ref={runInputRef}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400"
-              disabled={isGenerating}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="让 PM Studio 继续细化任意交付物..."
-              type="text"
-              value={prompt}
-            />
-            <button
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-950 text-white disabled:cursor-not-allowed disabled:bg-neutral-400"
-              disabled={isGenerating}
-              type="submit"
-            >
-              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-            </button>
-          </div>
-          {runError ? <p className="mt-2 px-8 text-xs text-rose-600">{runError}</p> : null}
-        </form>
-      </div>
+        </div>
+      </form>
     </section>
   );
 }
