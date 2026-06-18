@@ -27,13 +27,16 @@ PM Skills provides the PM reasoning and output structure. The harness converts r
 - `lib/agent-harness.ts`: provider-neutral types, adapter metadata, reference architecture, workflow definitions, output artifacts, and a mock generator.
 - `lib/agent-runner.ts`: server-side workflow runner that accepts a provider id, builds an OpenDesign/PM Skills-informed prompt, returns stable Product Pack data, and only attempts local Codex CLI when explicitly enabled.
 - `lib/provider-detection.ts`: server-only helper that detects local Codex and Claude Code CLIs for `/api/harness`.
-- `lib/product-pack-export.ts`: deterministic Product Pack export renderer for Markdown, JSON, HTML, and placeholder PDF/PPTX metadata.
+- `lib/product-pack-export.ts`: deterministic Product Pack export renderer for Markdown, JSON, HTML, PDF, and editable PPTX decks.
 - `lib/pm-skills-registry.ts`: local registry that maps raw PM Skills source skills to user-friendly actions and PM Studio use cases.
 - `lib/pm-workflows.ts`: user-facing workflow registry that turns PM Skills method references into PM Studio product workflows.
 - `app/api/harness/route.ts`: GET endpoint that exposes detected providers and workflows.
 - `app/api/generate/route.ts`: POST endpoint that accepts `providerId`, `workflowId`, and `input`, then returns a generated Product Pack plus adapter run metadata.
 - `app/api/export/route.ts`: GET/POST endpoint that exports Product Pack artifacts by `artifact` and `format`.
 - `components/studio/artifact-canvas.tsx`: workspace state surface that restores the last Product Pack from browser storage, supports local artifact edits, and posts the current Product Pack to `/api/export`.
+- The bottom workspace run form supports optional intake fields for target user, success outcome, and constraints, then composes them into the same serializable `input` string used by all providers.
+- Artifact handoff actions create downloadable continuation packages from the current browser-local Product Pack: prototype tabs produce OpenDesign JSON, while other tabs produce Codex Markdown.
+- The workspace sidebar can create browser-local demo projects from new ideas, call the selected provider, and switch between generated Product Packs.
 - `skills/*/SKILL.md`: project-local workflow instructions for future prompt or native skill injection.
 - `references/sources/open-design`: ignored local checkout for agent adapter and artifact preview reference code.
 - `references/sources/pm-skills`: ignored local checkout for PM workflow reference skills.
@@ -71,6 +74,8 @@ Detection is intentionally lightweight: `/api/harness` marks Codex or Claude Cod
 
 Set `PMSTUDIO_ENABLE_LOCAL_AGENT=1` before starting Next.js to let the Codex provider attempt a local CLI run. Even then, PM Studio still renders the stable typed Product Pack and treats CLI output as adapter metadata until parsing is added.
 
+For a cloud demo server, `PMSTUDIO_ENABLE_CLOUD_AGENTS=1` enables the same controlled server-side CLI attempt for Codex and Claude Code when their CLIs are installed and authenticated on the host. Keep this behind authentication or a private network; see `docs/engineering/cloud-agent-deployment.md`.
+
 ## Workspace State Plan
 
 The competition MVP uses browser-local state before introducing persistent project storage:
@@ -80,6 +85,9 @@ The competition MVP uses browser-local state before introducing persistent proje
 - recent generation runs are saved locally with provider, run mode, workflow, input idea, project title, and run id;
 - edit mode updates the typed Product Pack directly, so PRD fields, prototype flow, OpenDesign prompt, screen goals, summaries, and export payloads stay aligned;
 - `/api/export` accepts a full Product Pack in POST requests, allowing edited artifacts to be downloaded without a database.
+- `prototype` JSON export returns a portable live artifact bundle containing `artifact.json`, `data.json`, and `index.html` bodies, matching the OpenDesign artifact mental model without adding file storage.
+- PDF export uses PDFKit with an embedded CJK-capable font, so Chinese Product Pack content is returned as a real `application/pdf` binary instead of placeholder JSON.
+- PPTX export uses `pptxgenjs` to generate an editable four-slide deck for roadmap and executive summary artifacts.
 
 ## MVP Workflow Plan
 

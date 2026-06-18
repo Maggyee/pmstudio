@@ -30,7 +30,7 @@ function isProductPack(value: unknown): value is ProductPack {
   );
 }
 
-function buildExportResponse({
+async function buildExportResponse({
   artifactId,
   format,
   input,
@@ -42,7 +42,7 @@ function buildExportResponse({
   productPack?: ProductPack;
 }) {
   const pack = productPack ?? buildProductPackFromIdea(input || defaultFinSightIdea);
-  const exported = createProductPackExport({
+  const exported = await createProductPackExport({
     artifactId,
     format,
     productPack: pack,
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    return buildExportResponse({ artifactId, format, input });
+    return await buildExportResponse({ artifactId, format, input });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Export failed" },
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return buildExportResponse({
+    return await buildExportResponse({
       artifactId,
       format,
       input: body?.input?.trim() || undefined,

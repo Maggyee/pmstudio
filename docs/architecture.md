@@ -24,16 +24,21 @@ PM Agent Studio combines two reference systems into one PM-focused AI workspace:
 The current MVP is deterministic:
 
 1. `/api/harness` detects local Codex / Claude Code CLIs, then exposes providers, reference architecture, MVP workflows, and future workflow registry entries.
-2. `/api/generate` accepts a provider id, workflow id, and product idea, then returns adapter metadata, events, compatibility artifacts, and a typed Product Pack generated for that idea.
-3. `/api/export` accepts an artifact id and format, then returns deterministic Markdown, JSON, HTML, or placeholder PDF/PPTX metadata.
+2. `/api/generate` accepts a provider id, workflow id, and product idea/intake brief, then returns adapter metadata, events, compatibility artifacts, and a typed Product Pack generated for that idea.
+3. `/api/export` accepts an artifact id and format, then returns deterministic Markdown, JSON, HTML, PDF, or editable PPTX output; prototype JSON returns a portable live artifact bundle with `artifact.json`, `data.json`, and `index.html` bodies.
 4. `/app` renders the current FinSight demo workspace using the typed Product Pack and existing visual design baseline.
-5. The workspace can call `/api/generate` from the bottom run input and can download supported artifact exports through `/api/export`.
+5. The workspace can call `/api/generate` from the bottom run input, add optional target/outcome/constraint context, and download supported artifact exports through `/api/export`.
 6. The workspace stores the last Product Pack, agent events, and recent run history in browser-local storage, then posts the current Product Pack for edited artifact exports.
+7. The workspace can download continuation handoff packages from the current edited Product Pack: OpenDesign JSON for prototype work and Codex Markdown for artifact continuation.
+8. The workspace sidebar supports browser-local demo project creation and switching so a live presenter can generate multiple Product Packs without a database.
+9. A cloud demo can enable server-side Codex and Claude Code CLI attempts with `PMSTUDIO_ENABLE_CLOUD_AGENTS=1`, while still rendering the stable typed Product Pack until CLI output parsing is implemented.
 
 No real AI provider, subprocess manager, authentication, database, payment, or external OpenDesign API is required for the 2026-06-21 sprint.
 
 ## Next Integration Steps
 
 1. Parse optional Codex CLI output into structured Product Pack deltas after the demo flow is stable.
-2. Replace PDF/PPTX placeholders with binary renderers.
+2. Add richer PPTX templates and saved-PPTX visual rendering QA.
 3. Add server-side persistence after the browser-local run history MVP is accepted.
+4. Replace downloaded handoff packages with direct OpenDesign/Codex launch integration when those runtimes are available.
+5. Add authentication, queueing, audit logs, and stronger sandbox policy before exposing cloud CLI execution publicly.

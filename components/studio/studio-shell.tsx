@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bot,
   ChevronDown,
@@ -20,6 +20,7 @@ import { studioDesignSystems } from "@/lib/mock-data";
 import type {
   AgentProvider,
   AgentProviderId,
+  GeneratedPack,
   HarnessEvent,
   HarnessWorkflow,
 } from "@/lib/agent-harness";
@@ -84,6 +85,17 @@ const fallbackProviders: AgentProvider[] = [
 type HarnessApiResponse = {
   providers?: AgentProvider[];
 };
+
+type DemoProject = {
+  id: string;
+  productPack: ProductPack;
+  agentEvents: HarnessEvent[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+const localProjectsStorageKey = "pmstudio:demo-projects:v1";
+const localActiveProjectStorageKey = "pmstudio:active-project-id:v1";
 
 function TopbarPicker({
   label,
@@ -201,12 +213,117 @@ export function StudioShell({
   agentEvents?: HarnessEvent[];
   productPack?: ProductPack;
 }) {
-  const [shellProductPack, setShellProductPack] = useState(productPack);
+  const fallbackProject: DemoProject | undefined = useMemo(
+    () =>
+      productPack
+        ? {
+            agentEvents: agentEvents ?? [],
+            createdAt: productPack.generatedAt,
+            id: productPack.id,
+            productPack,
+            updatedAt: productPack.generatedAt,
+          }
+        : undefined,
+    [agentEvents, productPack],
+  );
+  const [projects, setProjects] = useState<DemoProject[]>(fallbackProject ? [fallbackProject] : []);
+  const [activeProjectId, setActiveProjectId] = useState(fallbackProject?.id);
+  const activeProject =
+    projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? fallbackProject;
+  const [shellProductPack, setShellProductPack] = useState(activeProject?.productPack ?? productPack);
+  const [shellAgentEvents, setShellAgentEvents] = useState<HarnessEvent[]>(
+    activeProject?.agentEvents ?? agentEvents ?? [],
+  );
+  const [creatingProject, setCreatingProject] = useState(false);
   const projectTitle = shellProductPack?.project.title ?? "FinSight 智能投研工作台";
   const workflowTitle = activeWorkflow?.title ?? "Idea-to-Product Pack";
   const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
   const [providers, setProviders] = useState<AgentProvider[]>(fallbackProviders);
   const [providersLoading, setProvidersLoading] = useState(true);
+
+  useEffect(() => {
+    try {
+      const storedProjectsValue = window.localStorage.getItem(localProjectsStorageKey);
+      const storedActiveProjectId = window.localStorage.getItem(localActiveProjectStorageKey);
+
+      if (!storedProjectsValue) return;
+
+      const parsedProjects = JSON.parse(storedProjectsValue) as DemoProject[];
+
+      if (!Array.isArray(parsedProjects) || parsedProjects.length === 0) return;
+
+      window.setTimeout(() => {
+        setProjects(parsedProjects);
+        setActiveProjectId(
+          storedActiveProjectId && parsedProjects.some((project) => project.id === storedActiveProjectId)
+            ? storedActiveProjectId
+            : parsedProjects[0].id,
+        );
+      }, 0);
+    } catch {
+      window.localStorage.removeItem(localProjectsStorageKey);
+      window.localStorage.removeItem(localActiveProjectStorageKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    const nextProject =
+      projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? fallbackProject;
+
+    if (!nextProject) return;
+
+    window.setTimeout(() => {
+      setShellProductPack(nextProject.productPack);
+      setShellAgentEvents(nextProject.agentEvents);
+    }, 0);
+  }, [activeProjectId, fallbackProject, projects]);
+
+  useEffect(() => {
+    if (!projects.length) return;
+
+    window.localStorage.setItem(localProjectsStorageKey, JSON.stringify(projects));
+
+    if (activeProjectId) {
+      window.localStorage.setItem(localActiveProjectStorageKey, activeProjectId);
+    }
+  }, [activeProjectId, projects]);
+
+  const upsertProject = useCallback(({
+    agentEvents: nextEvents,
+    productPack: nextPack,
+  }: {
+    agentEvents?: HarnessEvent[];
+    productPack: ProductPack;
+  }) => {
+    const now = new Date().toISOString();
+
+    setShellProductPack(nextPack);
+
+    if (nextEvents) {
+      setShellAgentEvents(nextEvents);
+    }
+
+    setProjects((currentProjects) => {
+      const existing = currentProjects.find((project) => project.id === nextPack.id);
+      const nextProject: DemoProject = {
+        agentEvents: nextEvents ?? existing?.agentEvents ?? shellAgentEvents,
+        createdAt: existing?.createdAt ?? nextPack.generatedAt ?? now,
+        id: nextPack.id,
+        productPack: nextPack,
+        updatedAt: now,
+      };
+      const withoutCurrent = currentProjects.filter((project) => project.id !== nextPack.id);
+
+      return [nextProject, ...withoutCurrent].slice(0, 12);
+    });
+    setActiveProjectId(nextPack.id);
+  }, [shellAgentEvents]);
+
+  const handleProductPackChange = useCallback((nextProductPack: ProductPack) => {
+    upsertProject({
+      productPack: nextProductPack,
+    });
+  }, [upsertProject]);
 
   async function refreshProviders() {
     setProvidersLoading(true);
@@ -280,6 +397,37 @@ export function StudioShell({
 
   function handleFocusRunInput() {
     window.dispatchEvent(new CustomEvent("pmstudio:focus-run-input"));
+  }
+
+  async function handleCreateProject(idea: string) {
+    setCreatingProject(true);
+
+    try {
+      const response = await fetch("/api/generate", {
+        body: JSON.stringify({
+          input: idea,
+          providerId: selectedProvider,
+          workflowId: "idea-to-product-pack",
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Project generation failed");
+      }
+
+      const generated = (await response.json()) as GeneratedPack;
+
+      upsertProject({
+        agentEvents: generated.events,
+        productPack: generated.productPack,
+      });
+    } finally {
+      setCreatingProject(false);
+    }
   }
 
   return (
@@ -360,7 +508,20 @@ export function StudioShell({
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="hidden border-r border-[#eeeeee] bg-white/72 lg:block">
           <div className="sticky top-0 h-screen overflow-y-auto">
-            <StudioSidebar activeWorkflow={activeWorkflow} productPack={shellProductPack} />
+            <StudioSidebar
+              activeProjectId={activeProjectId}
+              activeWorkflow={activeWorkflow}
+              creatingProject={creatingProject}
+              onCreateProject={handleCreateProject}
+              onSelectProject={setActiveProjectId}
+              productPack={shellProductPack}
+              projects={projects.map((project) => ({
+                id: project.id,
+                sourceIdea: project.productPack.sourceIdea,
+                title: project.productPack.project.title,
+                updatedAt: project.updatedAt,
+              }))}
+            />
           </div>
         </aside>
 
@@ -374,8 +535,10 @@ export function StudioShell({
           <ArtifactCanvas
             activeArtifact={activeArtifact}
             activeViewport={activeViewport}
-            agentEvents={agentEvents}
-            onProductPackChange={setShellProductPack}
+            agentEvents={shellAgentEvents}
+            key={activeProjectId}
+            onAgentEventsChange={setShellAgentEvents}
+            onProductPackChange={handleProductPackChange}
             productPack={shellProductPack}
             providerId={selectedProvider}
           />

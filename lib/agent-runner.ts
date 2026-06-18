@@ -20,7 +20,9 @@ export type AgentWorkflowRunRequest = {
   input: string;
 };
 
-const localAgentEnabled = process.env.PMSTUDIO_ENABLE_LOCAL_AGENT === "1";
+const serverAgentEnabled =
+  process.env.PMSTUDIO_ENABLE_LOCAL_AGENT === "1" ||
+  process.env.PMSTUDIO_ENABLE_CLOUD_AGENTS === "1";
 
 function getProvider(providerId: AgentProviderId) {
   return agentProviders.find((provider) => provider.id === providerId) ?? agentProviders[0];
@@ -146,6 +148,55 @@ async function runCodexCli(prompt: string, runId: string) {
   });
 }
 
+async function runClaudeCodeCli(prompt: string, runId: string) {
+  const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
+  await mkdir(runDir, { recursive: true });
+
+  const args = [
+    "--print",
+    "--output-format",
+    "stream-json",
+    "--cwd",
+    runDir,
+  ];
+
+  return new Promise<{ command: string; output: string }>((resolve, reject) => {
+    const child = spawn("claude", args, {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const chunks: string[] = [];
+    const errors: string[] = [];
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error("Claude Code run timed out after 45 seconds"));
+    }, 45_000);
+
+    child.stdout.on("data", (chunk) => chunks.push(String(chunk)));
+    child.stderr.on("data", (chunk) => errors.push(String(chunk)));
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+
+      const output = [...chunks, ...errors].join("").trim();
+
+      if (code === 0) {
+        resolve({
+          command: `claude ${args.join(" ")}`,
+          output,
+        });
+        return;
+      }
+
+      reject(new Error(output || `Claude Code exited with code ${code}`));
+    });
+
+    child.stdin.end(prompt);
+  });
+}
+
 export async function runAgentWorkflow({
   providerId = "mock",
   workflowId,
@@ -181,7 +232,7 @@ export async function runAgentWorkflow({
   }
 
   if (provider.id === "codex") {
-    if (localAgentEnabled) {
+    if (serverAgentEnabled) {
       try {
         const result = await runCodexCli(prompt, runId);
 
@@ -245,6 +296,50 @@ export async function runAgentWorkflow({
   }
 
   if (provider.id === "claude-code") {
+    if (serverAgentEnabled) {
+      try {
+        const result = await runClaudeCodeCli(prompt, runId);
+
+        return withRunMetadata({
+          runId,
+          pack,
+          metadata: {
+            providerId: provider.id,
+            mode: "claude-cli",
+            command: result.command,
+            outputPreview: result.output.slice(0, 1200),
+            promptPreview: prompt.slice(0, 700),
+          },
+          events: [
+            {
+              type: "running",
+              agent: "Claude Code Adapter",
+              message: "已通过服务器 Claude Code CLI 执行 PM Studio workflow，当前 Product Pack 仍使用稳定结构渲染。",
+            },
+          ],
+        });
+      } catch (error) {
+        return withRunMetadata({
+          runId,
+          pack,
+          metadata: {
+            providerId: provider.id,
+            mode: "claude-dry-run",
+            command: provider.command,
+            outputPreview: error instanceof Error ? error.message : "Claude Code CLI run failed",
+            promptPreview: prompt.slice(0, 700),
+          },
+          events: [
+            {
+              type: "running",
+              agent: "Claude Code Adapter",
+              message: "服务器 Claude Code CLI 未完成，已回退到稳定 mock Product Pack。",
+            },
+          ],
+        });
+      }
+    }
+
     return withRunMetadata({
       runId,
       pack,
@@ -258,7 +353,7 @@ export async function runAgentWorkflow({
         {
           type: "queued",
           agent: "Claude Code Adapter",
-          message: "Claude Code adapter contract 已保留，当前 sprint 默认不启动 stream-json subprocess。",
+          message: "Claude Code adapter dry-run 已组装 prompt 和命令；设置 PMSTUDIO_ENABLE_CLOUD_AGENTS=1 后可在服务器尝试 CLI。",
         },
       ],
     });

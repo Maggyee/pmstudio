@@ -59,6 +59,7 @@ export type AgentRunMode =
   | "mock"
   | "codex-dry-run"
   | "codex-cli"
+  | "claude-cli"
   | "claude-dry-run"
   | "api-fallback-dry-run";
 

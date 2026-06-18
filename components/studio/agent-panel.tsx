@@ -51,6 +51,7 @@ function getEventLabel(event: HarnessEvent) {
 function getRunModeLabel(item: AgentRunHistoryItem) {
   const labels: Record<AgentRunHistoryItem["runMode"], string> = {
     "api-fallback-dry-run": "API dry-run",
+    "claude-cli": "Claude CLI",
     "claude-dry-run": "Claude dry-run",
     "codex-cli": "Codex CLI",
     "codex-dry-run": "Codex dry-run",

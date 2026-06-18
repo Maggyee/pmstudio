@@ -491,6 +491,7 @@ function ArtifactEditPanel({
 type ArtifactAction = {
   artifactId?: string;
   format?: ExportFormat;
+  handoffTarget?: "codex" | "open-design";
   href?: string;
   label: string;
 };
@@ -499,6 +500,7 @@ function ActionIcon({ action }: { action: ArtifactAction }) {
   if (action.label.includes("Markdown")) return <FileText className="h-4 w-4" />;
   if (action.label.includes("PDF")) return <Download className="h-4 w-4" />;
   if (action.label.includes("HTML")) return <FileCode2 className="h-4 w-4" />;
+  if (action.label.includes("Artifact")) return <FileCode2 className="h-4 w-4" />;
   if (action.label.includes("JSON")) return <FileCode2 className="h-4 w-4" />;
   if (action.label.includes("PPTX")) return <Presentation className="h-4 w-4" />;
   if (action.label.includes("Codex")) return <Send className="h-4 w-4" />;
@@ -509,18 +511,22 @@ function ArtifactView({
   activeTab,
   activeViewport,
   isPrototypeExporting,
+  isEditing,
   onEditPrototypePrompt,
   onExportPrototypeHtml,
   onRequestGenerate,
   productPack,
+  onChange,
 }: {
   activeTab: (typeof studioTabs)[number];
   activeViewport?: string;
   isPrototypeExporting?: boolean;
+  isEditing?: boolean;
   onEditPrototypePrompt?: () => void;
   onExportPrototypeHtml?: () => void;
   onRequestGenerate?: () => void;
   productPack?: ProductPack;
+  onChange?: (pack: ProductPack) => void;
 }) {
   if (activeTab === "PRD") {
     return <PrdPreview productPack={productPack} />;
@@ -532,10 +538,12 @@ function ArtifactView({
         <StudioPrototypePreview
           activeViewport={activeViewport}
           isExporting={isPrototypeExporting}
+          isEditing={isEditing}
           onEditPrompt={onEditPrototypePrompt}
           onExportHtml={onExportPrototypeHtml}
           onRegenerate={onRequestGenerate}
           productPack={productPack}
+          onChange={onChange}
         />
         <PrdPrototypeMap productPack={productPack} />
       </div>
@@ -608,7 +616,9 @@ function getArtifactHref(tab: (typeof studioTabs)[number], activeViewport?: stri
   return `/app?artifact=${artifact}`;
 }
 
-function getExportActionLabel(format: ExportFormat) {
+function getExportActionLabel(format: ExportFormat, artifactId?: string) {
+  if (artifactId === "prototype" && format === "json") return "导出 Live Artifact";
+
   const labels: Record<ExportFormat, string> = {
     html: "导出 HTML",
     json: "导出 JSON",
@@ -627,7 +637,7 @@ function getArtifactActions(tab: (typeof studioTabs)[number], productPack: Produ
     artifact?.exportFormats.map((format) => ({
       artifactId,
       format,
-      label: getExportActionLabel(format),
+      label: getExportActionLabel(format, artifactId),
     })) ?? [
       {
         artifactId,
@@ -635,7 +645,10 @@ function getArtifactActions(tab: (typeof studioTabs)[number], productPack: Produ
         label: "导出 Markdown",
       },
     ];
-  const openAction = { label: tab === "原型" ? "在 Open Design 打开" : "发送到 Codex" };
+  const openAction: ArtifactAction =
+    tab === "原型"
+      ? { handoffTarget: "open-design", label: "导出 OpenDesign 包" }
+      : { handoffTarget: "codex", label: "导出 Codex 交接包" };
 
   return [...exportActions, openAction];
 }
@@ -667,6 +680,7 @@ const demoPromptPresets = [
 function getRunModeLabel(mode?: AgentRunMode) {
   const labels: Record<AgentRunMode, string> = {
     "api-fallback-dry-run": "API dry-run",
+    "claude-cli": "Claude CLI",
     "claude-dry-run": "Claude dry-run",
     "codex-cli": "Codex CLI",
     "codex-dry-run": "Codex dry-run",
@@ -687,10 +701,111 @@ function getProviderLabel(providerId: AgentProviderId) {
   return labels[providerId];
 }
 
+function downloadBrowserFile({
+  body,
+  filename,
+  type,
+}: {
+  body: BlobPart;
+  filename: string;
+  type: string;
+}) {
+  const blob = new Blob([body], { type });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function buildCodexHandoffMarkdown(
+  pack: ProductPack,
+  activeTab: (typeof studioTabs)[number],
+) {
+  return [
+    `# ${pack.project.title} Codex Handoff`,
+    "",
+    "## Goal",
+    "",
+    "Continue this PM Studio product pack without changing the provider-neutral artifact contract.",
+    "",
+    "## Source Idea",
+    "",
+    pack.sourceIdea,
+    "",
+    "## Product Context",
+    "",
+    `- One-liner: ${pack.project.oneLiner}`,
+    `- Positioning: ${pack.project.positioning}`,
+    `- Value proposition: ${pack.project.valueProposition}`,
+    "",
+    "## Active Artifact",
+    "",
+    `- Tab: ${activeTab}`,
+    `- Artifact id: ${artifactIndexIdByTab[activeTab]}`,
+    "",
+    "## PRD Objective",
+    "",
+    pack.prd.objective,
+    "",
+    "## Prototype Prompt",
+    "",
+    pack.prototype.openDesignPrompt,
+    "",
+    "## Next Actions",
+    "",
+    ...pack.summary.nextActions.map((item) => `- ${item}`),
+    "",
+    "## Product Pack JSON",
+    "",
+    "```json",
+    JSON.stringify(pack, null, 2),
+    "```",
+  ].join("\n");
+}
+
+function buildOpenDesignHandoffJson(pack: ProductPack) {
+  return JSON.stringify(
+    {
+      schemaVersion: "pmstudio-opendesign-handoff.v1",
+      source: {
+        product: "PM Studio",
+        productPackId: pack.id,
+        generatedAt: pack.generatedAt,
+      },
+      intent:
+        "Use OpenDesign-style Studio Shell, Artifact Canvas, and iframe preview patterns to continue this prototype artifact.",
+      liveArtifact: pack.prototype.liveArtifact,
+      prompt: pack.prototype.openDesignPrompt,
+      product: pack.project,
+      prd: {
+        objective: pack.prd.objective,
+        coreFeatures: pack.prd.coreFeatures,
+        mvpScope: pack.prd.mvpScope,
+        successMetrics: pack.prd.successMetrics,
+      },
+      prototype: {
+        userFlow: pack.prototype.userFlow,
+        screens: pack.prototype.screens,
+        prdLinks: pack.prototype.prdLinks,
+      },
+      exportHint:
+        "Call /api/export with artifact=prototype&format=json to download artifact.json, data.json, and index.html bodies.",
+    },
+    null,
+    2,
+  );
+}
+
 export function ArtifactCanvas({
   activeArtifact,
   activeViewport,
   agentEvents,
+  onAgentEventsChange,
   onProductPackChange,
   productPack,
   providerId = "mock",
@@ -698,6 +813,7 @@ export function ArtifactCanvas({
   activeArtifact?: string;
   activeViewport?: string;
   agentEvents?: HarnessEvent[];
+  onAgentEventsChange?: (events: HarnessEvent[]) => void;
   onProductPackChange?: (productPack: ProductPack) => void;
   productPack?: ProductPack;
   providerId?: AgentProviderId;
@@ -713,12 +829,24 @@ export function ArtifactCanvas({
   const [lastRunMode, setLastRunMode] = useState<AgentRunMode>("mock");
   const [runHistory, setRunHistory] = useState<AgentRunHistoryItem[]>([]);
   const [prompt, setPrompt] = useState(currentPack.sourceIdea);
+  const [intakeAudience, setIntakeAudience] = useState("");
+  const [intakeOutcome, setIntakeOutcome] = useState("");
+  const [intakeConstraints, setIntakeConstraints] = useState("");
   const [runError, setRunError] = useState<string | null>(null);
   const runInputRef = useRef<HTMLInputElement>(null);
+  const activeTabRef = useRef(activeTab);
+  const currentPackRef = useRef(currentPack);
   const projectTitle = currentPack.project.title;
   const artifactActions = getArtifactActions(activeTab, currentPack);
 
   useEffect(() => {
+    activeTabRef.current = activeTab;
+    currentPackRef.current = currentPack;
+  }, [activeTab, currentPack]);
+
+  useEffect(() => {
+    if (productPack) return;
+
     let storedPack: ProductPack | null = null;
     let storedEvents: HarnessEvent[] | null = null;
     let storedRunHistory: AgentRunHistoryItem[] | null = null;
@@ -774,7 +902,19 @@ export function ArtifactCanvas({
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, []);
+  }, [productPack]);
+
+  useEffect(() => {
+    if (!productPack) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setCurrentPack(productPack);
+      setPrompt(productPack.sourceIdea);
+      setCurrentEvents(agentEvents);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [agentEvents, productPack]);
 
   useEffect(() => {
     window.localStorage.setItem(localProductPackStorageKey, JSON.stringify(currentPack));
@@ -784,8 +924,9 @@ export function ArtifactCanvas({
   useEffect(() => {
     if (currentEvents?.length) {
       window.localStorage.setItem(localEventsStorageKey, JSON.stringify(currentEvents));
+      onAgentEventsChange?.(currentEvents);
     }
-  }, [currentEvents]);
+  }, [currentEvents, onAgentEventsChange]);
 
   useEffect(() => {
     window.localStorage.setItem(localRunHistoryStorageKey, JSON.stringify(runHistory));
@@ -802,12 +943,43 @@ export function ArtifactCanvas({
     setRunHistory([]);
     setLastRunMode("mock");
     setPrompt(nextPack.sourceIdea);
+    setIntakeAudience("");
+    setIntakeOutcome("");
+    setIntakeConstraints("");
     setActiveMode("预览");
   }
 
+  const handleHandoffAction = useCallback((action: ArtifactAction) => {
+    const pack = currentPackRef.current;
+    const tab = activeTabRef.current;
+
+    if (action.handoffTarget === "open-design") {
+      downloadBrowserFile({
+        body: buildOpenDesignHandoffJson(pack),
+        filename: `${pack.id}-opendesign-handoff.json`,
+        type: "application/json;charset=utf-8",
+      });
+      return;
+    }
+
+    if (action.handoffTarget === "codex") {
+      downloadBrowserFile({
+        body: buildCodexHandoffMarkdown(pack, tab),
+        filename: `${pack.id}-codex-handoff.md`,
+        type: "text/markdown;charset=utf-8",
+      });
+    }
+  }, []);
+
   const handleExportAction = useCallback(async (action: ArtifactAction) => {
+    if (action.handoffTarget) {
+      handleHandoffAction(action);
+      return;
+    }
+
     if (!action.artifactId || !action.format) return;
 
+    const pack = currentPackRef.current;
     const actionKey = `${action.artifactId}:${action.format}`;
     setExportingAction(actionKey);
     setRunError(null);
@@ -817,7 +989,7 @@ export function ArtifactCanvas({
         body: JSON.stringify({
           artifact: action.artifactId,
           format: action.format,
-          productPack: currentPack,
+          productPack: pack,
         }),
         headers: {
           "Content-Type": "application/json",
@@ -834,22 +1006,18 @@ export function ArtifactCanvas({
       const disposition = response.headers.get("Content-Disposition");
       const filename =
         disposition?.match(/filename="([^"]+)"/)?.[1] ??
-        `${currentPack.id}-${action.artifactId}.${action.format === "markdown" ? "md" : action.format}`;
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+        `${pack.id}-${action.artifactId}.${action.format === "markdown" ? "md" : action.format}`;
+      downloadBrowserFile({
+        body: blob,
+        filename,
+        type: response.headers.get("Content-Type") ?? "application/octet-stream",
+      });
     } catch (error) {
       setRunError(error instanceof Error ? error.message : "导出失败");
     } finally {
       setExportingAction(null);
     }
-  }, [currentPack]);
+  }, [handleHandoffAction]);
 
   useEffect(() => {
     function focusRunInput() {
@@ -877,10 +1045,21 @@ export function ArtifactCanvas({
     };
   }, [handleExportAction]);
 
+  function buildIntakeInput(baseInput: string) {
+    const context = [
+      intakeAudience.trim() ? `面向${intakeAudience.trim()}。` : "",
+      intakeOutcome.trim() ? `帮助${intakeOutcome.trim()}。` : "",
+      intakeConstraints.trim() ? `约束条件：${intakeConstraints.trim()}` : "",
+    ].filter(Boolean);
+
+    return [baseInput, ...context].join("\n");
+  }
+
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const input = prompt.trim() || currentPack.sourceIdea || defaultFinSightIdea;
+    const baseInput = prompt.trim() || currentPack.sourceIdea || defaultFinSightIdea;
+    const input = buildIntakeInput(baseInput);
     setIsGenerating(true);
     setRunError(null);
 
@@ -918,7 +1097,7 @@ export function ArtifactCanvas({
         },
         ...history,
       ].slice(0, 8));
-      setPrompt(generated.input);
+      setPrompt(baseInput);
       setActiveMode("预览");
     } catch (error) {
       setRunError(error instanceof Error ? error.message : "生成失败");
@@ -1043,6 +1222,7 @@ export function ArtifactCanvas({
                   activeTab={activeTab}
                   activeViewport={activeViewport}
                   isPrototypeExporting={exportingAction === "prototype:html"}
+                  isEditing={activeMode === "修改"}
                   onEditPrototypePrompt={() => setActiveMode("修改")}
                   onExportPrototypeHtml={() =>
                     handleExportAction({
@@ -1053,6 +1233,7 @@ export function ArtifactCanvas({
                   }
                   onRequestGenerate={() => setActiveMode("生成")}
                   productPack={currentPack}
+                  onChange={setCurrentPack}
                 />
               </div>
             </div>
@@ -1105,13 +1286,55 @@ export function ArtifactCanvas({
               {getRunModeLabel(lastRunMode)}
             </span>
           </div>
+          {activeMode === "生成" ? (
+            <div className="mb-3 grid gap-2 px-1 sm:grid-cols-3">
+              <label className="block">
+                <span className="px-1 text-[11px] font-semibold text-neutral-500">目标用户</span>
+                <input
+                  className="mt-1 h-9 w-full rounded-xl border border-black/10 bg-white/65 px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                  disabled={isGenerating}
+                  onChange={(event) => setIntakeAudience(event.target.value)}
+                  placeholder="财富顾问 / 店长 / HR"
+                  type="text"
+                  value={intakeAudience}
+                />
+              </label>
+              <label className="block">
+                <span className="px-1 text-[11px] font-semibold text-neutral-500">成功结果</span>
+                <input
+                  className="mt-1 h-9 w-full rounded-xl border border-black/10 bg-white/65 px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                  disabled={isGenerating}
+                  onChange={(event) => setIntakeOutcome(event.target.value)}
+                  placeholder="缩短准备时间 / 提高转化"
+                  type="text"
+                  value={intakeOutcome}
+                />
+              </label>
+              <label className="block sm:col-span-1">
+                <span className="px-1 text-[11px] font-semibold text-neutral-500">约束条件</span>
+                <input
+                  className="mt-1 h-9 w-full rounded-xl border border-black/10 bg-white/65 px-3 text-xs text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30"
+                  disabled={isGenerating}
+                  onChange={(event) => setIntakeConstraints(event.target.value)}
+                  placeholder="MVP / 合规 / 2 周内"
+                  type="text"
+                  value={intakeConstraints}
+                />
+              </label>
+            </div>
+          ) : null}
           <div className="mb-2 flex gap-1 overflow-x-auto px-8">
             {demoPromptPresets.map((preset) => (
               <button
                 className="h-7 shrink-0 rounded-full border border-black/8 bg-white/55 px-3 text-xs font-medium text-neutral-500 transition hover:bg-white hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isGenerating}
                 key={preset.label}
-                onClick={() => setPrompt(preset.prompt)}
+                onClick={() => {
+                  setPrompt(preset.prompt);
+                  setIntakeAudience("");
+                  setIntakeOutcome("");
+                  setIntakeConstraints("");
+                }}
                 type="button"
               >
                 {preset.label}

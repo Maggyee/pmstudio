@@ -43,6 +43,7 @@ npm run build
 - Progress index: `docs/progress/README.md`
 - Memory index: `docs/memory/README.md`
 - Harness notes: `docs/engineering/harness.md`
+- Cloud agent deployment notes: `docs/engineering/cloud-agent-deployment.md`
 - GitHub sync notes: `docs/engineering/github-sync.md`
 - Reference source notes: `references/README.md`
 

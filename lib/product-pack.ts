@@ -69,6 +69,7 @@ export type ProductPack = {
         purpose: string;
       }>;
     };
+    stylesOverride?: Record<string, Record<string, string>>;
   };
   research: {
     marketOpportunity: Array<{ label: string; value: string; detail: string }>;
@@ -882,9 +883,9 @@ export function buildFinSightProductPack(input = defaultFinSightIdea): ProductPa
         "双参考 harness 让 OpenDesign 风格体验和 pm-skills 方法论各司其职。",
       ],
       nextActions: [
-        "把 UI 各 tab 逐步改为读取 Product Pack 数据。",
-        "把 Prototype tab 增加 OpenDesign prompt placeholder 和 live artifact manifest。",
-        "补 Codex / Claude Code adapter detection，让 mock provider 可替换。",
+        "用真实顾问会议素材验证 PRD、原型、PDF 和 PPTX 导出是否足够可评审。",
+        "把 Prototype tab 的 live artifact 进一步接入安全 iframe 预览和组件级编辑。",
+        "解析 Codex / Claude Code 输出为 Product Pack delta，让本地 agent 能更新现有方案包。",
       ],
     },
     artifactIndex: [

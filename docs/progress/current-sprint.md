@@ -27,7 +27,7 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Agent orchestration panel now renders harness events from the current generated run.
 - Artifact action buttons now derive export options from each Product Pack artifact.
 - `/api/harness` now detects local Codex and Claude Code CLI availability.
-- `/api/export` now provides deterministic Markdown, JSON, HTML, and placeholder PDF/PPTX artifact exports.
+- `/api/export` now provides deterministic Markdown, JSON, HTML, PDF, and PPTX artifact exports.
 - Workspace artifact action buttons now link to `/api/export`.
 - Bottom run input now calls `/api/generate` and updates Product Pack plus Agent events in the workspace.
 - Workspace now restores the last generated Product Pack and agent events from browser-local storage.
@@ -45,10 +45,19 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Generic Product Pack output now infers target users, product shape, domain profile, market window, competitor categories, personas, and roadmap from the submitted idea.
 - Prototype preview now reads Product Pack title, value proposition, flow, screens, and artifact files instead of hard-coded FinSight copy.
 - Workspace shell now follows the current generated Product Pack, so top navigation, sidebar, export, and run controls operate on the active project instead of the initial preset.
+- Bottom run input now has optional intake fields for target user, success outcome, and constraints, then passes the combined brief through the existing provider-neutral generation contract.
+- Prototype JSON export now returns an OpenDesign-style live artifact bundle with `artifact.json`, `data.json`, and `index.html` bodies; HTML export escapes generated user content before rendering.
+- PDF export now returns a real `application/pdf` binary for markdown-backed artifacts using an embedded CJK-capable font.
+- PPTX export now returns a real editable `.pptx` deck for roadmap and executive summary artifacts, with cover, summary, roadmap, and next-action slides.
+- FinSight default next actions now reflect the current MVP state instead of completed setup tasks.
+- Artifact handoff buttons now download real continuation packages: OpenDesign JSON for prototypes and Codex Markdown for other artifacts.
+- Workspace sidebar now supports browser-local demo projects: users can create a new project from an idea, run the selected provider, and switch between generated projects during a live demo.
+- Server runner now supports controlled cloud CLI execution for both Codex and Claude Code when `PMSTUDIO_ENABLE_CLOUD_AGENTS=1` is set.
+- Cloud agent deployment notes added under `docs/engineering/cloud-agent-deployment.md`.
 
 ## In Progress
 
-- Preparing richer user input fields, adapter output parsing, and binary export replacement for a later MVP slice.
+- Preparing adapter output parsing, server-side project persistence, richer PPTX templates, visual PPTX rendering QA, and direct OpenDesign/Codex launch integration for a later MVP slice.
 - Following the rapid delivery plan in `docs/progress/rapid-delivery-plan.md`.
 
 ## Deferred
