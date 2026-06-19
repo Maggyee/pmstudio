@@ -25,6 +25,10 @@ import {
   X,
 } from "lucide-react";
 
+import {
+  generatePrototypeHtml,
+  type PrototypeGenerationOptions,
+} from "@/lib/prototype-artifacts";
 import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
@@ -85,431 +89,12 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-export function generateSandboxHtml(pack: ProductPack, isEditing: boolean) {
-  const overrides = pack.prototype.stylesOverride || {};
-
-  const getStyleString = (id: string, defaultStyles = "") => {
-    const custom = overrides[id];
-    if (!custom) return defaultStyles ? `style="${defaultStyles}"` : "";
-    const customStr = Object.entries(custom)
-      .map(([k, v]) => `${k.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase())}:${v}`)
-      .join(";");
-    return `style="${defaultStyles}${defaultStyles && !defaultStyles.endsWith(";") ? ";" : ""}${customStr}"`;
-  };
-
-  const screens = pack.prototype.screens
-    .map((screen, sIdx) => {
-      const screenId = `screen-${sIdx}`;
-      const nameId = `screen-${sIdx}-name`;
-      const goalId = `screen-${sIdx}-goal`;
-      const actionId = `screen-${sIdx}-primaryAction`;
-
-      const componentItems = screen.components
-        .map((item, cIdx) => {
-          const compId = `screen-${sIdx}-comp-${cIdx}`;
-          return `<span class="component-chip" data-od-id="${compId}" ${getStyleString(
-            compId,
-            "",
-          )}>${escapeHtml(item)}</span>`;
-        })
-        .join("");
-
-      return `
-        <section class="screen-panel" data-od-id="${screenId}" ${getStyleString(
-          screenId,
-          "",
-        )}>
-          <div class="screen-index">${String(sIdx + 1).padStart(2, "0")}</div>
-          <div class="screen-content">
-            <h2 data-od-id="${nameId}" ${getStyleString(
-            nameId,
-            "",
-          )}>${escapeHtml(screen.name)}</h2>
-            <p data-od-id="${goalId}" ${getStyleString(
-            goalId,
-            "",
-          )}>${escapeHtml(screen.goal)}</p>
-            <div class="component-grid">${componentItems}</div>
-          </div>
-          <button type="button" class="prototype-action" data-action-button="true" data-label="${escapeHtml(
-            screen.primaryAction,
-          )}" data-od-id="${actionId}" ${getStyleString(
-            actionId,
-            "",
-          )}>${escapeHtml(screen.primaryAction)}</button>
-        </section>`;
-    })
-    .join("");
-
-  const navItems = pack.prototype.screens
-    .map(
-      (screen, index) => `
-        <button type="button" class="nav-item ${index === 0 ? "active" : ""}">
-          <span>${String(index + 1).padStart(2, "0")}</span>
-          ${escapeHtml(screen.name)}
-        </button>`,
-    )
-    .join("");
-  const prdLinks = pack.prototype.prdLinks
-    .map(
-      (link) => `
-        <article class="trace-row">
-          <p>${escapeHtml(link.requirement)}</p>
-          <strong>${escapeHtml(link.screen)}</strong>
-          <span>${escapeHtml(link.rationale)}</span>
-        </article>`,
-    )
-    .join("");
-  const metrics = pack.prd.successMetrics
-    .map(
-      (metric, index) => `
-        <div class="metric-card">
-          <span>KR ${index + 1}</span>
-          <strong>${escapeHtml(metric)}</strong>
-        </div>`,
-    )
-    .join("");
-  const opportunities = pack.research.marketOpportunity
-    .map(
-      (item) => `
-        <div class="insight-row">
-          <span>${escapeHtml(item.label)}</span>
-          <strong>${escapeHtml(item.value)}</strong>
-          <p>${escapeHtml(item.detail)}</p>
-        </div>`,
-    )
-    .join("");
-  const competitors = pack.competitors
-    .slice(0, 4)
-    .map(
-      (item) => `
-        <tr>
-          <td>${escapeHtml(item.competitor)}</td>
-          <td>${escapeHtml(item.strength)}</td>
-          <td>${escapeHtml(item.opportunity)}</td>
-        </tr>`,
-    )
-    .join("");
-  const personas = pack.personas
-    .map(
-      (persona) => `
-        <div class="persona-card">
-          <strong>${escapeHtml(persona.name)}</strong>
-          <span>${escapeHtml(persona.role)}</span>
-          <p>${escapeHtml(persona.goal)}</p>
-        </div>`,
-    )
-    .join("");
-  const roadmap = pack.roadmap
-    .map(
-      (phase) => `
-        <div class="roadmap-item">
-          <strong>${escapeHtml(phase.horizon)}</strong>
-          <p>${escapeHtml(phase.items.join(" / "))}</p>
-        </div>`,
-    )
-    .join("");
-  const userFlowId = "prototype-userFlow";
-  const projectTitleId = "project-title";
-
-  const bridgeScript = `
-    <script>
-      (function() {
-        if (!${isEditing}) {
-          document.addEventListener('click', function(e) {
-            const action = e.target.closest('[data-action-button]');
-            if (!action) return;
-
-            e.preventDefault();
-            document.querySelectorAll('[data-action-button]').forEach(function(button) {
-              button.removeAttribute('data-active');
-              button.textContent = button.getAttribute('data-label') || button.textContent.trim();
-            });
-            action.setAttribute('data-active', 'true');
-            action.textContent = '已选择 · ' + (action.getAttribute('data-label') || action.textContent.trim());
-          });
-          return;
-        }
-        
-        const style = document.createElement('style');
-        style.textContent = \`
-          [data-od-id] {
-            cursor: pointer;
-            transition: outline 0.15s ease, background-color 0.15s ease;
-          }
-          [data-od-id]:hover {
-            outline: 2px solid #12a7ff !important;
-            outline-offset: 2px;
-          }
-          .od-selected {
-            outline: 2px solid #34c759 !important;
-            outline-offset: 2px;
-          }
-        \`;
-        document.head.appendChild(style);
-
-        let selectedEl = null;
-
-        document.addEventListener('click', function(e) {
-          const target = e.target.closest('[data-od-id]');
-          if (!target) return;
-          
-          e.preventDefault();
-          e.stopPropagation();
-
-          if (selectedEl) {
-            selectedEl.classList.remove('od-selected');
-          }
-          selectedEl = target;
-          selectedEl.classList.add('od-selected');
-
-          const computed = window.getComputedStyle(target);
-          const rect = target.getBoundingClientRect();
-
-          window.parent.postMessage({
-            type: 'element-selected',
-            id: target.getAttribute('data-od-id'),
-            tagName: target.tagName.toLowerCase(),
-            textContent: target.textContent.trim(),
-            rect: {
-              top: rect.top,
-              left: rect.left,
-              width: rect.width,
-              height: rect.height
-            },
-            styles: {
-              color: computed.color,
-              fontSize: computed.fontSize,
-              fontWeight: computed.fontWeight,
-              backgroundColor: computed.backgroundColor,
-              borderRadius: computed.borderRadius,
-              padding: computed.padding,
-              margin: computed.margin,
-              textAlign: computed.textAlign,
-              border: computed.border,
-              boxShadow: computed.boxShadow
-            }
-          }, '*');
-        }, true);
-      })();
-    </script>
-  `;
-
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(pack.project.title)}</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f1; color: #111111; }
-    button, input { font: inherit; }
-    .app-shell { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); background: #f5f5f1; }
-    .sidebar { border-right: 1px solid #e7e5df; background: rgba(255,255,255,.74); padding: 18px 14px; display: flex; flex-direction: column; gap: 18px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; }
-    .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: #111111; color: #ffffff; font-size: 13px; }
-    .nav-group { display: grid; gap: 6px; }
-    .nav-label { padding: 0 8px; font-size: 11px; font-weight: 700; color: #8a8a8a; text-transform: uppercase; }
-    .nav-item { width: 100%; min-height: 34px; border: 0; border-radius: 8px; background: transparent; color: #5f6062; display: flex; align-items: center; gap: 9px; padding: 8px; text-align: left; cursor: pointer; }
-    .nav-item span { color: #a0a0a0; font-size: 11px; font-variant-numeric: tabular-nums; }
-    .nav-item.active, .nav-item:hover { background: #111111; color: #ffffff; }
-    .nav-item.active span, .nav-item:hover span { color: rgba(255,255,255,.58); }
-    .sidebar-footer { margin-top: auto; border: 1px solid #ece8de; border-radius: 12px; background: #fbfaf7; padding: 12px; }
-    .sidebar-footer strong { display: block; font-size: 12px; }
-    .sidebar-footer p { margin: 6px 0 0; color: #6a6b6c; font-size: 12px; line-height: 1.55; }
-    .workspace { min-width: 0; display: flex; flex-direction: column; }
-    .topbar { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid #e7e5df; background: rgba(255,255,255,.78); padding: 12px 18px; backdrop-filter: blur(14px); }
-    .search { width: min(360px, 42vw); height: 34px; border: 1px solid #e7e5df; border-radius: 8px; background: #ffffff; color: #808080; display: flex; align-items: center; padding: 0 11px; font-size: 12px; }
-    .status-strip { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759; box-shadow: 0 0 0 4px #e1f2e6; }
-    .status-strip span { color: #6a6b6c; font-size: 12px; white-space: nowrap; }
-    main { min-width: 0; padding: 18px; }
-    .hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr); gap: 16px; margin-bottom: 16px; }
-    .hero-primary, .hero-side, .module, .screen-panel, .trace-row, .metric-card, .insight-row, .persona-card, .roadmap-item { border: 1px solid rgba(17,17,17,.10); background: #ffffff; border-radius: 12px; box-shadow: 0 8px 24px rgba(17,17,17,.035); }
-    .hero-primary { min-height: 248px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
-    .eyebrow { display: inline-flex; width: fit-content; border: 1px solid #d9efe2; border-radius: 7px; background: #eaf7ee; color: #177245; padding: 5px 8px; font-size: 11px; font-weight: 750; }
-    h1 { max-width: 780px; margin: 14px 0 0; font-size: 34px; line-height: 1.08; font-weight: 780; letter-spacing: 0; }
-    .flow { margin: 12px 0 0; max-width: 760px; color: #5f6062; font-size: 14px; line-height: 1.65; }
-    .hero-actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
-    .prototype-action { min-height: 34px; appearance: none; border: 1px solid #111111; border-radius: 8px; background: #111111; color: #ffffff; cursor: pointer; font-size: 12px; font-weight: 700; padding: 8px 12px; transition: background-color .16s ease, color .16s ease, transform .16s ease, border-color .16s ease; }
-    .prototype-action:hover { transform: translateY(-1px); }
-    .prototype-action[data-active="true"] { background: #12a7ff; border-color: #12a7ff; color: #ffffff; }
-    .ghost-action { border-color: #dcdcdc; background: #ffffff; color: #111111; }
-    .hero-side { padding: 16px; display: grid; gap: 10px; }
-    .hero-side h2, .module h2 { margin: 0; font-size: 13px; font-weight: 760; }
-    .metric-grid { display: grid; gap: 8px; }
-    .metric-card { padding: 12px; box-shadow: none; }
-    .metric-card span, .insight-row span, .screen-index { color: #808080; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    .metric-card strong { display: block; margin-top: 5px; color: #111111; font-size: 13px; line-height: 1.45; }
-    .layout-grid { display: grid; grid-template-columns: minmax(0, 1fr) 336px; gap: 16px; align-items: start; }
-    .main-stack { display: grid; gap: 16px; }
-    .side-stack { display: grid; gap: 16px; }
-    .module { padding: 16px; }
-    .module-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-    .module-header span { color: #808080; font-size: 12px; }
-    .screen-list { display: grid; gap: 10px; }
-    .screen-panel { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: start; gap: 14px; padding: 14px; box-shadow: none; }
-    .screen-index { padding-top: 3px; }
-    .screen-content h2 { margin: 0; font-size: 15px; font-weight: 760; }
-    .screen-content p { margin: 6px 0 0; color: #5f6062; font-size: 13px; line-height: 1.58; }
-    .component-grid { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .component-chip { border: 1px solid #e6e6e6; border-radius: 7px; background: #fbfaf7; color: #595a5c; padding: 5px 7px; font-size: 11px; }
-    .trace-list { display: grid; gap: 8px; }
-    .trace-row { padding: 12px; box-shadow: none; }
-    .trace-row p { margin: 0; color: #5f6062; font-size: 12px; line-height: 1.55; }
-    .trace-row strong { display: block; margin-top: 8px; font-size: 13px; }
-    .trace-row span { display: block; margin-top: 4px; color: #808080; font-size: 12px; line-height: 1.5; }
-    .insight-list, .persona-grid, .roadmap-list { display: grid; gap: 8px; }
-    .insight-row { padding: 12px; box-shadow: none; }
-    .insight-row strong { display: block; margin-top: 5px; font-size: 13px; }
-    .insight-row p { margin: 5px 0 0; color: #666; font-size: 12px; line-height: 1.55; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border-bottom: 1px solid #eeeeee; padding: 9px 0; text-align: left; vertical-align: top; }
-    th { color: #808080; font-size: 11px; font-weight: 700; }
-    td { color: #4f5052; line-height: 1.45; }
-    .persona-card, .roadmap-item { padding: 12px; box-shadow: none; }
-    .persona-card strong, .roadmap-item strong { display: block; font-size: 13px; }
-    .persona-card span { display: block; margin-top: 3px; color: #12a7ff; font-size: 11px; font-weight: 700; }
-    .persona-card p, .roadmap-item p { margin: 6px 0 0; color: #5f6062; font-size: 12px; line-height: 1.55; }
-    @media (max-width: 980px) {
-      .app-shell { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-      .hero, .layout-grid { grid-template-columns: 1fr; }
-      .screen-panel { grid-template-columns: 32px minmax(0, 1fr); }
-      .screen-panel .prototype-action { grid-column: 2; width: fit-content; }
-      .search { display: none; }
-    }
-    @media (max-width: 560px) {
-      main { padding: 12px; }
-      .topbar { align-items: flex-start; flex-direction: column; }
-      h1 { font-size: 25px; }
-      .hero-primary { padding: 16px; min-height: 220px; }
-      .screen-panel { grid-template-columns: 1fr; }
-      .screen-panel .prototype-action { grid-column: auto; }
-    }
-  </style>
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <span class="brand-mark">PM</span>
-        <span>${escapeHtml(pack.project.title)}</span>
-      </div>
-      <div class="nav-group">
-        <div class="nav-label">Prototype IA</div>
-        ${navItems}
-      </div>
-      <div class="nav-group">
-        <div class="nav-label">Artifacts</div>
-        <button type="button" class="nav-item"><span>PRD</span>需求文档</button>
-        <button type="button" class="nav-item"><span>MR</span>调研与竞品</button>
-        <button type="button" class="nav-item"><span>RM</span>路线图</button>
-      </div>
-      <div class="sidebar-footer">
-        <strong>Workflow Goal</strong>
-        <p>${escapeHtml(pack.prd.objective)}</p>
-      </div>
-    </aside>
-    <div class="workspace">
-      <header class="topbar">
-        <div class="status-strip">
-          <span class="status-dot"></span>
-          <span>PRD linked prototype · ${escapeHtml(pack.artifactIndex.length.toString())} artifacts ready</span>
-        </div>
-        <div class="search">Search PRD, screens, assumptions...</div>
-      </header>
-      <main>
-        <section class="hero">
-          <div class="hero-primary" data-od-id="hero-container" ${getStyleString("hero-container", "")}>
-            <div>
-              <div class="eyebrow" data-od-id="eyebrow" ${getStyleString("eyebrow", "")}>AI Product Workspace</div>
-              <h1 data-od-id="${projectTitleId}" ${getStyleString(projectTitleId, "")}>${escapeHtml(pack.project.title)}</h1>
-              <p class="flow" data-od-id="${userFlowId}" ${getStyleString(userFlowId, "")}>${escapeHtml(pack.prototype.userFlow)}</p>
-            </div>
-            <div class="hero-actions">
-              <button type="button" class="prototype-action" data-action-button="true" data-label="运行工作流">运行工作流</button>
-              <button type="button" class="prototype-action ghost-action" data-action-button="true" data-label="导出方案包">导出方案包</button>
-            </div>
-          </div>
-          <aside class="hero-side">
-            <h2>Success Metrics</h2>
-            <div class="metric-grid">${metrics}</div>
-          </aside>
-        </section>
-
-        <section class="layout-grid">
-          <div class="main-stack">
-            <section class="module">
-              <div class="module-header">
-                <h2>Prototype Screens / IA</h2>
-                <span>${escapeHtml(pack.prototype.screens.length.toString())} screens</span>
-              </div>
-              <div class="screen-list">${screens}</div>
-            </section>
-
-            <section class="module">
-              <div class="module-header">
-                <h2>PRD-to-Prototype Traceability</h2>
-                <span>Requirement -> Screen -> Rationale</span>
-              </div>
-              <div class="trace-list">${prdLinks}</div>
-            </section>
-
-            <section class="module">
-              <div class="module-header">
-                <h2>Competitor Direction</h2>
-                <span>Positioning gaps</span>
-              </div>
-              <table>
-                <thead>
-                  <tr><th>Competitor</th><th>Strength</th><th>Opportunity</th></tr>
-                </thead>
-                <tbody>${competitors}</tbody>
-              </table>
-            </section>
-          </div>
-
-          <aside class="side-stack">
-            <section class="module">
-              <div class="module-header">
-                <h2>Market Signals</h2>
-                <span>Research</span>
-              </div>
-              <div class="insight-list">${opportunities}</div>
-            </section>
-            <section class="module">
-              <div class="module-header">
-                <h2>User Personas</h2>
-                <span>JTBD</span>
-              </div>
-              <div class="persona-grid">${personas}</div>
-            </section>
-            <section class="module">
-              <div class="module-header">
-                <h2>Outcome Roadmap</h2>
-                <span>MVP to scale</span>
-              </div>
-              <div class="roadmap-list">${roadmap}</div>
-            </section>
-          </aside>
-        </section>
-      </main>
-    </div>
-  </div>
-  ${bridgeScript}
-</body>
-</html>`;
+export function generateSandboxHtml(
+  pack: ProductPack,
+  isEditing: boolean,
+  prototypeOptions: PrototypeGenerationOptions = {},
+) {
+  return generatePrototypeHtml(pack, isEditing, prototypeOptions);
 }
 
 function updatePackField(pack: ProductPack, id: string, text: string): ProductPack {
@@ -578,7 +163,9 @@ export function StudioPrototypePreview({
   onExportHtml,
   onExportLiveArtifact,
   onSwitchMode,
+  previewHtml,
   productPack,
+  prototypeOptions,
   sourceCode,
   viewerSubtitle,
   viewerTitle,
@@ -591,7 +178,9 @@ export function StudioPrototypePreview({
   onExportHtml?: () => void;
   onExportLiveArtifact?: () => void;
   onSwitchMode?: (mode: "修改" | "源码" | "预览") => void;
+  previewHtml?: string;
   productPack?: ProductPack;
+  prototypeOptions?: PrototypeGenerationOptions;
   sourceCode?: string;
   viewerSubtitle?: string;
   viewerTitle?: string;
@@ -820,7 +409,7 @@ export function StudioPrototypePreview({
     return <div className="p-8 text-center text-neutral-500">等待生成产品方案包...</div>;
   }
 
-  const sandboxHtml = generateSandboxHtml(pack, isEditing);
+  const sandboxHtml = previewHtml ?? generateSandboxHtml(pack, isEditing, prototypeOptions);
   const toolbarTitle = viewerTitle ?? "prototype/index.html";
   const toolbarSubtitle = viewerSubtitle ?? pack.prototype.userFlow;
   const modeOptions = [

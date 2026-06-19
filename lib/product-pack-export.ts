@@ -5,6 +5,10 @@ import pptxgen from "pptxgenjs";
 
 import { renderArtifactMarkdown } from "@/lib/pm-documents";
 import type { ProductPack, ProductPackArtifactIndexItem } from "@/lib/product-pack";
+import {
+  buildPrototypeArtifactBundle,
+  generatePrototypeHtml,
+} from "@/lib/prototype-artifacts";
 
 export type ExportFormat = ProductPackArtifactIndexItem["exportFormats"][number];
 
@@ -59,170 +63,8 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "") || "product-pack";
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function renderMarkdown(artifactId: string, pack: ProductPack) {
   return renderArtifactMarkdown(artifactId, pack);
-}
-
-function renderPrototypeHtml(pack: ProductPack) {
-  const overrides = pack.prototype.stylesOverride || {};
-
-  const getStyleString = (id: string, defaultStyles = "") => {
-    const custom = overrides[id];
-    if (!custom) return defaultStyles ? `style="${defaultStyles}"` : "";
-    const customStr = Object.entries(custom)
-      .map(([k, v]) => `${k.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase())}:${v}`)
-      .join(";");
-    return `style="${defaultStyles}${defaultStyles && !defaultStyles.endsWith(";") ? ";" : ""}${customStr}"`;
-  };
-
-  const screens = pack.prototype.screens
-    .map((screen, sIdx) => {
-      const screenId = `screen-${sIdx}`;
-      const nameId = `screen-${sIdx}-name`;
-      const goalId = `screen-${sIdx}-goal`;
-      const actionId = `screen-${sIdx}-primaryAction`;
-
-      const componentItems = screen.components
-        .map((item, cIdx) => {
-          const compId = `screen-${sIdx}-comp-${cIdx}`;
-          return `<li data-od-id="${compId}" ${getStyleString(
-            compId,
-            "margin-bottom: 6px; color: #4b5563;",
-          )}>${escapeHtml(item)}</li>`;
-        })
-        .join("");
-
-      return `
-        <article class="screen-card" data-od-id="${screenId}" ${getStyleString(
-          screenId,
-          "border: 1px solid rgba(17,24,39,.10); border-radius: 18px; background: #fff; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);",
-        )}>
-          <h2 data-od-id="${nameId}" ${getStyleString(
-            nameId,
-            "margin: 0; font-size: 18px; font-weight: 600;",
-          )}>${escapeHtml(screen.name)}</h2>
-          <p data-od-id="${goalId}" ${getStyleString(
-            goalId,
-            "color: #4b5563; line-height: 1.6; margin-top: 8px; margin-bottom: 12px; font-size: 14px;",
-          )}>${escapeHtml(screen.goal)}</p>
-          <strong data-od-id="${actionId}" ${getStyleString(
-            actionId,
-            "color: #047857; font-size: 13px; font-weight: 700; text-transform: uppercase;",
-          )}>${escapeHtml(screen.primaryAction)}</strong>
-          <ul style="margin-top: 12px; padding-left: 20px; font-size: 13px; color: #4b5563;">${componentItems}</ul>
-        </article>`;
-    })
-    .join("");
-
-  const userFlowId = "prototype-userFlow";
-  const projectTitleId = "project-title";
-
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(pack.project.title)}</title>
-  <style>
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #111827; }
-    main { max-width: 1120px; margin: 0 auto; padding: 32px 16px; }
-    .hero { border: 1px solid rgba(17,24,39,.12); border-radius: 24px; background: #fff; padding: 24px; box-shadow: 0 10px 30px rgba(15,23,42,.03); margin-bottom: 24px; }
-    .eyebrow { color: #047857; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-    h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.15; font-weight: 800; }
-    .flow { margin-top: 12px; color: #4b5563; font-size: 14px; line-height: 1.6; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
-  </style>
-</head>
-<body>
-  <main>
-    <section class="hero" data-od-id="hero-container" ${getStyleString("hero-container", "")}>
-      <div class="eyebrow" data-od-id="eyebrow" ${getStyleString("eyebrow", "")}>OpenDesign-style Live Artifact</div>
-      <h1 data-od-id="${projectTitleId}" ${getStyleString(projectTitleId, "")}>${escapeHtml(pack.project.title)}</h1>
-      <p class="flow" data-od-id="${userFlowId}" ${getStyleString(userFlowId, "")}>${escapeHtml(pack.prototype.userFlow)}</p>
-    </section>
-    <section class="grid">${screens}</section>
-  </main>
-</body>
-</html>`;
-}
-
-function renderPrototypeManifest(pack: ProductPack) {
-  return {
-    ...pack.prototype.liveArtifact,
-    source: {
-      productPackId: pack.id,
-      productPackSchemaVersion: pack.schemaVersion,
-      generatedAt: pack.generatedAt,
-    },
-  };
-}
-
-function renderPrototypeData(pack: ProductPack) {
-  return {
-    project: pack.project,
-    prd: {
-      objective: pack.prd.objective,
-      coreFeatures: pack.prd.coreFeatures,
-      mvpScope: pack.prd.mvpScope,
-      successMetrics: pack.prd.successMetrics,
-    },
-    prototype: {
-      userFlow: pack.prototype.userFlow,
-      screens: pack.prototype.screens,
-      prdLinks: pack.prototype.prdLinks,
-      openDesignPrompt: pack.prototype.openDesignPrompt,
-    },
-    summary: pack.summary,
-  };
-}
-
-function renderPrototypeLiveArtifactBundle(pack: ProductPack) {
-  const manifest = renderPrototypeManifest(pack);
-  const data = renderPrototypeData(pack);
-  const html = renderPrototypeHtml(pack);
-
-  return JSON.stringify(
-    {
-      schemaVersion: "pmstudio-live-artifact-bundle.v1",
-      artifactId: "prototype",
-      projectId: pack.id,
-      liveArtifact: pack.prototype.liveArtifact,
-      preview: pack.prototype.liveArtifact.preview,
-      instructions:
-        "Write each files[].body value to files[].path to recreate the OpenDesign-style live artifact.",
-      files: [
-        {
-          path: "artifact.json",
-          mimeType: "application/json",
-          purpose: "artifact manifest",
-          body: JSON.stringify(manifest, null, 2),
-        },
-        {
-          path: "data.json",
-          mimeType: "application/json",
-          purpose: "structured product pack data",
-          body: JSON.stringify(data, null, 2),
-        },
-        {
-          path: "index.html",
-          mimeType: "text/html",
-          purpose: "previewable prototype shell",
-          body: html,
-        },
-      ],
-    },
-    null,
-    2,
-  );
 }
 
 function getPdfFontBytes() {
@@ -782,9 +624,9 @@ export async function createProductPackExport({
   if (format === "json") {
     if (artifactId === "prototype") {
       return {
-        body: renderPrototypeLiveArtifactBundle(productPack),
+        body: JSON.stringify(buildPrototypeArtifactBundle(productPack), null, 2),
         contentType: "application/json; charset=utf-8",
-        filename: `${filenameBase}.live-artifact.json`,
+        filename: `${filenameBase}.prototype-artifact.json`,
       };
     }
 
@@ -797,7 +639,7 @@ export async function createProductPackExport({
 
   if (format === "html") {
     return {
-      body: renderPrototypeHtml(productPack),
+      body: generatePrototypeHtml(productPack, false),
       contentType: "text/html; charset=utf-8",
       filename: `${filenameBase}.html`,
     };

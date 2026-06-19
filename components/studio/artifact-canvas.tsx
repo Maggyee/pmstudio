@@ -22,6 +22,7 @@ import {
   PanelRightOpen,
   Pencil,
   Presentation,
+  RefreshCw,
   Send,
   Share2,
   SlidersHorizontal,
@@ -34,13 +35,21 @@ import { DocumentPreview } from "@/components/studio/document-preview";
 import { PrdPreview } from "@/components/studio/prd-preview";
 import { ResearchPreview } from "@/components/studio/research-preview";
 import {
-  generateSandboxHtml,
   StudioPrototypePreview,
 } from "@/components/studio/prototype-preview";
 import { SummaryPreview } from "@/components/studio/summary-preview";
 import {
   studioTabs,
 } from "@/lib/mock-data";
+import {
+  buildPrototypeArtifactBundle,
+  prototypeKindOptions,
+  prototypeTemplateOptions,
+  renderPrototypeFile,
+  type PrototypeGenerationOptions,
+  type PrototypeKind,
+  type PrototypeTemplateId,
+} from "@/lib/prototype-artifacts";
 import type {
   AgentProviderId,
   AgentRunMode,
@@ -154,6 +163,7 @@ function ArtifactView({
   onOpenPrototypeLink,
   onOpenPrototypeSource,
   productPack,
+  prototypeOptions,
   onChange,
 }: {
   activeTab: (typeof studioTabs)[number];
@@ -166,6 +176,7 @@ function ArtifactView({
   onOpenPrototypeLink?: (source: PrdPrototypeSource) => void;
   onOpenPrototypeSource?: () => void;
   productPack?: ProductPack;
+  prototypeOptions?: PrototypeGenerationOptions;
   onChange?: (pack: ProductPack) => void;
 }) {
   const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
@@ -189,6 +200,7 @@ function ArtifactView({
             if (mode === "源码") onOpenPrototypeSource?.();
           }}
           productPack={pack}
+          prototypeOptions={prototypeOptions}
           onChange={onChange}
         />
       </div>
@@ -352,7 +364,31 @@ function getFileIdForArtifact(artifact?: string) {
   return fileIdByTab[getTabFromArtifactParam(artifact)];
 }
 
-function getStudioFiles(pack: ProductPack): StudioFile[] {
+function getPrototypeStudioFileKind(path: string, mimeType: string): StudioFileKind {
+  if (mimeType.includes("html") || path.endsWith(".html")) return "html";
+  if (mimeType.includes("json") || path.endsWith(".json")) return "json";
+  if (mimeType.includes("markdown") || path.endsWith(".md")) return "markdown";
+
+  return "markdown";
+}
+
+function getStudioFiles(
+  pack: ProductPack,
+  prototypeOptions: PrototypeGenerationOptions = {},
+): StudioFile[] {
+  const prototypeBundle = buildPrototypeArtifactBundle(pack, prototypeOptions);
+  const prototypeFiles: StudioFile[] = prototypeBundle.files.map((file) => ({
+    artifactId: "prototype",
+    description: file.purpose,
+    editable: file.editable,
+    id: `prototype/${file.path}`,
+    kind: getPrototypeStudioFileKind(file.path, file.mimeType),
+    name: file.name,
+    section: "Prototype",
+    tab: "原型",
+    updatedAt: pack.generatedAt,
+  }));
+
   return [
     {
       artifactId: "product-pack",
@@ -376,28 +412,7 @@ function getStudioFiles(pack: ProductPack): StudioFile[] {
       tab: "PRD",
       updatedAt: pack.generatedAt,
     },
-    {
-      artifactId: "prototype",
-      description: pack.prototype.userFlow,
-      editable: true,
-      id: "prototype/index.html",
-      kind: "html",
-      name: "index.html",
-      section: "Prototype",
-      tab: "原型",
-      updatedAt: pack.generatedAt,
-    },
-    {
-      artifactId: "prototype",
-      description: "Prototype data, screen goals, PRD links, and OpenDesign prompt.",
-      editable: true,
-      id: "prototype/data.json",
-      kind: "json",
-      name: "data.json",
-      section: "Prototype",
-      tab: "原型",
-      updatedAt: pack.generatedAt,
-    },
+    ...prototypeFiles,
     {
       artifactId: "research",
       description: pack.research.marketOpportunity[0]?.detail ?? "Market opportunity notes.",
@@ -486,20 +501,13 @@ function StudioFileIcon({ file }: { file: StudioFile }) {
   return <FileText className="h-4 w-4" />;
 }
 
-function renderStudioFileSource(file: StudioFile, pack: ProductPack) {
-  if (file.id === "prototype/data.json") {
-    return JSON.stringify(
-      {
-        project: pack.project,
-        prototype: pack.prototype,
-      },
-      null,
-      2,
-    );
-  }
-
-  if (file.tab === "原型") {
-    return generateSandboxHtml(pack, false);
+function renderStudioFileSource(
+  file: StudioFile,
+  pack: ProductPack,
+  prototypeOptions: PrototypeGenerationOptions = {},
+) {
+  if (file.artifactId === "prototype") {
+    return renderPrototypeFile(file.id, pack, prototypeOptions, false);
   }
 
   return renderArtifactMarkdown(file.artifactId, pack);
@@ -597,6 +605,8 @@ function buildCodexHandoffMarkdown(
 }
 
 function buildOpenDesignHandoffJson(pack: ProductPack) {
+  const prototypeArtifactBundle = buildPrototypeArtifactBundle(pack);
+
   return JSON.stringify(
     {
       schemaVersion: "pmstudio-opendesign-handoff.v1",
@@ -607,7 +617,15 @@ function buildOpenDesignHandoffJson(pack: ProductPack) {
       },
       intent:
         "Use OpenDesign-style Studio Shell, Artifact Canvas, and iframe preview patterns to continue this prototype artifact.",
-      liveArtifact: pack.prototype.liveArtifact,
+      liveArtifact: {
+        ...pack.prototype.liveArtifact,
+        files: prototypeArtifactBundle.files.map((file) => ({
+          path: file.path,
+          mimeType: file.mimeType,
+          purpose: file.purpose,
+        })),
+      },
+      prototypeArtifactBundle,
       prompt: pack.prototype.openDesignPrompt,
       product: pack.project,
       prd: {
@@ -622,7 +640,7 @@ function buildOpenDesignHandoffJson(pack: ProductPack) {
         prdLinks: pack.prototype.prdLinks,
       },
       exportHint:
-        "Call /api/export with artifact=prototype&format=json to download artifact.json, data.json, and index.html bodies.",
+        "Call /api/export with artifact=prototype&format=json to download index.html, screens/*.html, data.json, design-manifest.json, and DESIGN-HANDOFF.md bodies.",
     },
     null,
     2,
@@ -796,15 +814,168 @@ function OpenFileTabs({
   );
 }
 
+function escapePreviewHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderInlineMarkdown(value: string) {
+  return escapePreviewHtml(value)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function isMarkdownTableSeparator(line: string) {
+  return /^\|\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line.trim());
+}
+
+function renderMarkdownPreview(markdown: string) {
+  const html: string[] = [];
+  let listOpen = false;
+  let tableOpen = false;
+
+  const closeList = () => {
+    if (!listOpen) return;
+    html.push("</ul>");
+    listOpen = false;
+  };
+
+  const closeTable = () => {
+    if (!tableOpen) return;
+    html.push("</tbody></table>");
+    tableOpen = false;
+  };
+
+  markdown.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      closeList();
+      closeTable();
+      return;
+    }
+
+    if (isMarkdownTableSeparator(trimmed)) return;
+
+    if (trimmed.startsWith("|")) {
+      closeList();
+      if (!tableOpen) {
+        html.push("<table><tbody>");
+        tableOpen = true;
+      }
+      const cells = trimmed
+        .replace(/^\||\|$/g, "")
+        .split("|")
+        .map((cell) => `<td>${renderInlineMarkdown(cell.trim())}</td>`)
+        .join("");
+      html.push(`<tr>${cells}</tr>`);
+      return;
+    }
+
+    closeTable();
+
+    if (trimmed.startsWith("- ")) {
+      if (!listOpen) {
+        html.push("<ul>");
+        listOpen = true;
+      }
+      html.push(`<li>${renderInlineMarkdown(trimmed.slice(2))}</li>`);
+      return;
+    }
+
+    closeList();
+
+    if (trimmed.startsWith("### ")) {
+      html.push(`<h3>${renderInlineMarkdown(trimmed.slice(4))}</h3>`);
+      return;
+    }
+
+    if (trimmed.startsWith("## ")) {
+      html.push(`<h2>${renderInlineMarkdown(trimmed.slice(3))}</h2>`);
+      return;
+    }
+
+    if (trimmed.startsWith("# ")) {
+      html.push(`<h1>${renderInlineMarkdown(trimmed.slice(2))}</h1>`);
+      return;
+    }
+
+    if (trimmed.startsWith("> ")) {
+      html.push(`<blockquote>${renderInlineMarkdown(trimmed.slice(2))}</blockquote>`);
+      return;
+    }
+
+    html.push(`<p>${renderInlineMarkdown(trimmed)}</p>`);
+  });
+
+  closeList();
+  closeTable();
+
+  return html.join("");
+}
+
 function SourceViewer({
   file,
+  generatedValue,
   onChange,
+  onReset,
   value,
 }: {
   file: StudioFile;
+  generatedValue: string;
   onChange: (value: string) => void;
+  onReset: () => void;
   value: string;
 }) {
+  const isDirty = value !== generatedValue;
+
+  if (file.kind === "markdown") {
+    return (
+      <div className="overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-neutral-950">{file.id}</p>
+            <p className="mt-0.5 text-xs text-neutral-500">左侧编辑 Markdown，右侧实时预览；导出会优先使用当前编辑内容。</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isDirty ? (
+              <span className="rounded-md bg-[#e8f6ff] px-2 py-1 text-[11px] font-medium text-[#0a70a8]">
+                已编辑
+              </span>
+            ) : null}
+            <button
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-2.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!isDirty}
+              onClick={onReset}
+              type="button"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              恢复生成版本
+            </button>
+          </div>
+        </div>
+        <div className="grid min-h-[640px] lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="min-h-0 border-b border-black/10 bg-[#111111] lg:border-b-0 lg:border-r">
+            <textarea
+              className="h-full min-h-[640px] w-full resize-none bg-[#111111] p-4 font-mono text-xs leading-5 text-white/82 outline-none selection:bg-[#12a7ff]/35"
+              onChange={(event) => onChange(event.target.value)}
+              spellCheck={false}
+              value={value}
+            />
+          </div>
+          <article
+            className="prose-preview min-h-[640px] overflow-auto bg-[#fbfaf7] p-6"
+            dangerouslySetInnerHTML={{ __html: renderMarkdownPreview(value) }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-black/10 bg-[#111111] shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
@@ -812,9 +983,25 @@ function SourceViewer({
           <p className="truncate text-xs font-semibold text-white/78">{file.id}</p>
           <p className="mt-0.5 text-[11px] text-white/38">可编辑源码，Markdown 导出会优先使用当前内容。</p>
         </div>
-        <span className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/45">
-          {fileKindLabel(file.kind)}
-        </span>
+        <div className="flex items-center gap-2">
+          {isDirty ? (
+            <span className="rounded-md border border-[#12a7ff]/30 bg-[#12a7ff]/10 px-2 py-1 text-[11px] text-[#94D8FF]">
+              edited
+            </span>
+          ) : null}
+          <button
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-white/10 px-2 text-[11px] text-white/55 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!isDirty}
+            onClick={onReset}
+            type="button"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Reset
+          </button>
+          <span className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/45">
+            {fileKindLabel(file.kind)}
+          </span>
+        </div>
       </div>
       <textarea
         className="min-h-[560px] w-full resize-y bg-[#111111] p-4 font-mono text-xs leading-5 text-white/82 outline-none selection:bg-[#12a7ff]/35"
@@ -830,10 +1017,13 @@ function FilePreviewSurface({
   activeMode,
   activeViewport,
   file,
+  generatedSourceValue,
   prototypeExportingFormat,
+  prototypeOptions,
   onOpenPrototypeLink,
   onChange,
   onExportAction,
+  onResetSource,
   onSourceChange,
   onSwitchMode,
   productPack,
@@ -842,17 +1032,24 @@ function FilePreviewSurface({
   activeMode: "生成" | "修改" | "源码" | "预览";
   activeViewport?: string;
   file: StudioFile;
+  generatedSourceValue: string;
   prototypeExportingFormat?: "html" | "json" | null;
+  prototypeOptions: PrototypeGenerationOptions;
   onOpenPrototypeLink: (source: PrdPrototypeSource) => void;
   onChange: (productPack: ProductPack) => void;
   onExportAction: (action: ArtifactAction) => void;
+  onResetSource: () => void;
   onSourceChange: (value: string) => void;
   onSwitchMode: (mode: "生成" | "修改" | "源码" | "预览") => void;
   productPack: ProductPack;
   sourceValue: string;
 }) {
-  if (file.id === "prototype/index.html") {
+  if (file.artifactId === "prototype" && file.kind === "html") {
     const prototypeMode = activeMode === "生成" ? "预览" : activeMode;
+    const previewHtml =
+      prototypeMode === "修改"
+        ? renderPrototypeFile(file.id, productPack, prototypeOptions, true)
+        : sourceValue;
 
     return (
       <StudioPrototypePreview
@@ -875,7 +1072,9 @@ function FilePreviewSurface({
           })
         }
         onSwitchMode={onSwitchMode}
+        previewHtml={previewHtml}
         productPack={productPack}
+        prototypeOptions={prototypeOptions}
         sourceCode={sourceValue}
         viewerSubtitle={file.description}
         viewerTitle={file.id}
@@ -883,8 +1082,16 @@ function FilePreviewSurface({
     );
   }
 
-  if (activeMode === "源码" || file.id === "prototype/data.json") {
-    return <SourceViewer file={file} onChange={onSourceChange} value={sourceValue} />;
+  if (activeMode === "源码" || file.artifactId === "prototype") {
+    return (
+      <SourceViewer
+        file={file}
+        generatedValue={generatedSourceValue}
+        onChange={onSourceChange}
+        onReset={onResetSource}
+        value={sourceValue}
+      />
+    );
   }
 
   return (
@@ -911,6 +1118,7 @@ function FilePreviewSurface({
       onOpenPrototypeSource={() => onSwitchMode("源码")}
       onOpenPrototypeLink={onOpenPrototypeLink}
       productPack={productPack}
+      prototypeOptions={prototypeOptions}
       onChange={onChange}
     />
   );
@@ -928,8 +1136,12 @@ function AgentConversationPane({
   lastRunMode,
   onGenerate,
   onPromptChange,
+  onPrototypeKindChange,
+  onPrototypeTemplateChange,
   onSelectPreset,
   prompt,
+  prototypeKind,
+  prototypeTemplateId,
   providerId,
   runError,
   runHistory,
@@ -950,8 +1162,12 @@ function AgentConversationPane({
   lastRunMode: AgentRunMode;
   onGenerate: (event: React.FormEvent<HTMLFormElement>) => void;
   onPromptChange: (value: string) => void;
+  onPrototypeKindChange: (value: PrototypeKind | "auto") => void;
+  onPrototypeTemplateChange: (value: PrototypeTemplateId) => void;
   onSelectPreset: (prompt: string) => void;
   prompt: string;
+  prototypeKind: PrototypeKind | "auto";
+  prototypeTemplateId: PrototypeTemplateId;
   providerId: AgentProviderId;
   runError: string | null;
   runHistory: AgentRunHistoryItem[];
@@ -1006,6 +1222,48 @@ function AgentConversationPane({
             </div>
           ) : null}
         </div>
+
+        <section className="mb-3 rounded-xl border border-black/10 bg-white p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-neutral-500">原型生成流程</p>
+            <span className="rounded-md bg-[#e8f6ff] px-2 py-0.5 text-[11px] text-[#0a70a8]">
+              {"Brief -> Template -> Files"}
+            </span>
+          </div>
+          <div className="grid gap-2">
+            <label className="grid gap-1">
+              <span className="text-[11px] font-medium text-neutral-500">原型类型</span>
+              <select
+                className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+                onChange={(event) => onPrototypeKindChange(event.target.value as PrototypeKind | "auto")}
+                value={prototypeKind}
+              >
+                {prototypeKindOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[11px] font-medium text-neutral-500">设计模板</span>
+              <select
+                className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+                onChange={(event) => onPrototypeTemplateChange(event.target.value as PrototypeTemplateId)}
+                value={prototypeTemplateId}
+              >
+                {prototypeTemplateOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-neutral-500">
+            生成会产出 index launcher、独立 screen HTML、data、manifest 和 handoff，而不是复用同一张业务工作台页面。
+          </p>
+        </section>
 
         <AgentPanel
           events={agentEvents}
@@ -1525,18 +1783,26 @@ export function ArtifactCanvas({
   const [fileSourceDrafts, setFileSourceDrafts] = useState<Record<string, string>>({});
   const [contextCollapsed, setContextCollapsed] = useState(true);
   const [prototypeLinkSource, setPrototypeLinkSource] = useState<PrdPrototypeSource | null>(null);
+  const [prototypeKind, setPrototypeKind] = useState<PrototypeKind | "auto">("auto");
+  const [prototypeTemplateId, setPrototypeTemplateId] = useState<PrototypeTemplateId>("auto");
   const runInputRef = useRef<HTMLTextAreaElement>(null);
   const activeTabRef = useRef(getTabFromArtifactParam(activeArtifact));
   const currentPackRef = useRef(currentPack);
-  const studioFiles = getStudioFiles(currentPack);
+  const prototypeOptions: PrototypeGenerationOptions = {
+    designSystem: "PM Studio DESIGN.md",
+    kind: prototypeKind,
+    templateId: prototypeTemplateId,
+  };
+  const studioFiles = getStudioFiles(currentPack, prototypeOptions);
   const activeFile = studioFiles.find((file) => file.id === activeFileId) ?? studioFiles[0]!;
   const openFiles = openFileIds
     .map((fileId) => studioFiles.find((file) => file.id === fileId))
     .filter((file): file is StudioFile => Boolean(file));
   const activeTab = activeFile.tab;
   const activeSourceDraftKey = `${currentPack.id}:${activeFile.id}`;
+  const generatedActiveSourceValue = renderStudioFileSource(activeFile, currentPack, prototypeOptions);
   const activeSourceValue =
-    fileSourceDrafts[activeSourceDraftKey] ?? renderStudioFileSource(activeFile, currentPack);
+    fileSourceDrafts[activeSourceDraftKey] ?? generatedActiveSourceValue;
   const activeWorkflowDefinition =
     workflowDefinition ?? getPresetWorkflowDefinition(getWorkflowIdForTab(activeTab));
   const activeWorkflowId = activeWorkflowDefinition?.workflowId ?? getWorkflowIdForTab(activeTab);
@@ -1545,7 +1811,9 @@ export function ArtifactCanvas({
   const availableModes =
     activeFile.tab === "原型" ? (["预览", "修改", "源码"] as const) : (["预览", "源码"] as const);
   const useEmbeddedPrototypeToolbar =
-    activeWorkspaceTabId !== designFilesTabId && activeFile.id === "prototype/index.html";
+    activeWorkspaceTabId !== designFilesTabId &&
+    activeFile.artifactId === "prototype" &&
+    activeFile.kind === "html";
   const prototypeExportingFormat =
     exportingAction === "prototype:html" ? "html" : exportingAction === "prototype:json" ? "json" : null;
 
@@ -1563,6 +1831,12 @@ export function ArtifactCanvas({
 
   const openDesignFiles = useCallback(() => {
     setActiveWorkspaceTabId(designFilesTabId);
+  }, []);
+
+  const clearPrototypeSourceDrafts = useCallback(() => {
+    setFileSourceDrafts((drafts) =>
+      Object.fromEntries(Object.entries(drafts).filter(([key]) => !key.includes(":prototype/"))),
+    );
   }, []);
 
   function closeStudioFile(fileId: string) {
@@ -1933,6 +2207,14 @@ export function ArtifactCanvas({
           lastRunMode={lastRunMode}
           onGenerate={handleGenerate}
           onPromptChange={setPrompt}
+          onPrototypeKindChange={(value) => {
+            setPrototypeKind(value);
+            clearPrototypeSourceDrafts();
+          }}
+          onPrototypeTemplateChange={(value) => {
+            setPrototypeTemplateId(value);
+            clearPrototypeSourceDrafts();
+          }}
           onSelectPreset={(presetPrompt) => {
             setPrompt(presetPrompt);
             setIntakeAudience("");
@@ -1941,6 +2223,8 @@ export function ArtifactCanvas({
             setActiveMode("预览");
           }}
           prompt={prompt}
+          prototypeKind={prototypeKind}
+          prototypeTemplateId={prototypeTemplateId}
           providerId={providerId}
           runError={runError}
           runHistory={runHistory}
@@ -2058,10 +2342,19 @@ export function ArtifactCanvas({
                   activeMode={activeMode}
                   activeViewport={activeViewport}
                   file={activeFile}
+                  generatedSourceValue={generatedActiveSourceValue}
                   prototypeExportingFormat={prototypeExportingFormat}
+                  prototypeOptions={prototypeOptions}
                   onOpenPrototypeLink={setPrototypeLinkSource}
                   onChange={setCurrentPack}
                   onExportAction={handleExportAction}
+                  onResetSource={() =>
+                    setFileSourceDrafts((drafts) => {
+                      const nextDrafts = { ...drafts };
+                      delete nextDrafts[activeSourceDraftKey];
+                      return nextDrafts;
+                    })
+                  }
                   onSourceChange={(value) =>
                     setFileSourceDrafts((drafts) => ({
                       ...drafts,

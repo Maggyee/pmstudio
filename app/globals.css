@@ -92,6 +92,85 @@ input {
   transform: none;
 }
 
+.prose-preview {
+  color: #222222;
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.prose-preview h1,
+.prose-preview h2,
+.prose-preview h3 {
+  margin: 0 0 10px;
+  color: #111111;
+  letter-spacing: 0;
+}
+
+.prose-preview h1 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.prose-preview h2 {
+  margin-top: 22px;
+  border-top: 1px solid #dddddd;
+  padding-top: 18px;
+  font-size: 18px;
+}
+
+.prose-preview h3 {
+  margin-top: 18px;
+  font-size: 15px;
+}
+
+.prose-preview p {
+  margin: 0 0 12px;
+  color: #4f5052;
+}
+
+.prose-preview ul {
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+
+.prose-preview li {
+  margin: 4px 0;
+  color: #4f5052;
+}
+
+.prose-preview blockquote {
+  margin: 14px 0;
+  border-left: 3px solid #12a7ff;
+  background: #e8f6ff;
+  padding: 10px 12px;
+  color: #24566f;
+}
+
+.prose-preview table {
+  width: 100%;
+  margin: 14px 0;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid #dddddd;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 12px;
+}
+
+.prose-preview td {
+  border-bottom: 1px solid #eeeeee;
+  padding: 9px 10px;
+  vertical-align: top;
+}
+
+.prose-preview code {
+  border-radius: 6px;
+  background: #eeeeee;
+  padding: 2px 5px;
+  color: #111111;
+  font-size: 12px;
+}
+
 @supports (animation-timeline: view()) {
   .scroll-reveal {
     animation: scroll-reveal both ease-out;
