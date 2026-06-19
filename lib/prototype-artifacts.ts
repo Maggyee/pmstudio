@@ -1304,5 +1304,5 @@ export function generatePrototypeHtml(
   isEditing: boolean,
   options: PrototypeGenerationOptions = {},
 ) {
-  return renderPrototypeFile("index.html", pack, options, isEditing);
+  return renderPrototypeFile(getPrototypeScreenPath(pack, 0), pack, options, isEditing);
 }

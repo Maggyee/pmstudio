@@ -27,8 +27,14 @@ import {
 
 import {
   generatePrototypeHtml,
+  getPrototypeScreenPath,
   type PrototypeGenerationOptions,
 } from "@/lib/prototype-artifacts";
+import {
+  applyPrototypeEditPatch,
+  type PrototypeEditHistoryEntry,
+  type PrototypeEditPatch,
+} from "@/lib/prototype-edit";
 import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
@@ -97,6 +103,182 @@ export function generateSandboxHtml(
   return generatePrototypeHtml(pack, isEditing, prototypeOptions);
 }
 
+function buildPreviewEditBridgeScript() {
+  return `
+    <script>
+      (function() {
+        if (window.__PM_STUDIO_SOURCE_EDIT_BRIDGE__) return;
+        window.__PM_STUDIO_SOURCE_EDIT_BRIDGE__ = true;
+
+        const style = document.createElement('style');
+        style.textContent = \`
+          [data-od-id] {
+            cursor: pointer;
+            transition: outline 0.15s ease, background-color 0.15s ease;
+          }
+          [data-od-id]:hover {
+            outline: 2px solid #12A7FF !important;
+            outline-offset: 2px;
+          }
+          .pmstudio-selected-target {
+            outline: 2px solid #34C759 !important;
+            outline-offset: 2px;
+          }
+        \`;
+        document.head.appendChild(style);
+
+        let selectedEl = null;
+
+        function clickedElement(event) {
+          if (!event.target) return null;
+          if (event.target.nodeType === 1) return event.target;
+          return event.target.parentElement || null;
+        }
+
+        window.addEventListener('click', function(event) {
+          const clicked = clickedElement(event);
+          const target = clicked ? clicked.closest('[data-od-id]') : null;
+          if (!target) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof event.stopImmediatePropagation === 'function') {
+            event.stopImmediatePropagation();
+          }
+
+          if (selectedEl) selectedEl.classList.remove('pmstudio-selected-target');
+          selectedEl = target;
+          selectedEl.classList.add('pmstudio-selected-target');
+
+          const computed = window.getComputedStyle(target);
+          const rect = target.getBoundingClientRect();
+
+          window.parent.postMessage({
+            type: 'element-selected',
+            id: target.getAttribute('data-od-id'),
+            tagName: target.tagName.toLowerCase(),
+            textContent: target.textContent.trim(),
+            rect: {
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height
+            },
+            styles: {
+              color: computed.color,
+              fontSize: computed.fontSize,
+              fontWeight: computed.fontWeight,
+              backgroundColor: computed.backgroundColor,
+              borderRadius: computed.borderRadius,
+              padding: computed.padding,
+              margin: computed.margin,
+              textAlign: computed.textAlign,
+              border: computed.border,
+              boxShadow: computed.boxShadow
+            }
+          }, '*');
+        }, true);
+      })();
+    </script>
+  `;
+}
+
+function withPreviewEditBridge(source: string) {
+  const bridgeScript = buildPreviewEditBridgeScript();
+
+  if (source.includes("__PM_STUDIO_SOURCE_EDIT_BRIDGE__")) return source;
+  if (source.includes("</body>")) return source.replace("</body>", `${bridgeScript}
+</body>`);
+
+  return `${source}
+${bridgeScript}`;
+}
+
+function buildPreviewNavigationBridgeScript() {
+  return `
+    <script>
+      (function() {
+        if (window.__PM_STUDIO_NAV_BRIDGE__) return;
+        window.__PM_STUDIO_NAV_BRIDGE__ = true;
+
+        function clickedElement(event) {
+          if (!event.target) return null;
+          if (event.target.nodeType === 1) return event.target;
+          return event.target.parentElement || null;
+        }
+
+        function normalizeArtifactPath(rawPath) {
+          if (!rawPath) return null;
+          if (/^[a-z][a-z0-9+.-]*:/i.test(rawPath) || rawPath.charAt(0) === '#') return null;
+
+          var clean = rawPath
+            .split('#')[0]
+            .split('?')[0];
+
+          while (clean.indexOf('./') === 0) clean = clean.slice(2);
+          while (clean.indexOf('/') === 0) clean = clean.slice(1);
+          if (clean.indexOf('prototype/') === 0) clean = clean.slice('prototype/'.length);
+
+          if (!clean || clean.indexOf('../') === 0) return null;
+          if (clean === 'index.html') return clean;
+          if (clean === 'data.json') return clean;
+          if (clean === 'design-manifest.json') return clean;
+          if (clean === 'DESIGN-HANDOFF.md') return clean;
+          if (clean.indexOf('screens/') === 0) return clean;
+          if (clean.indexOf('/') < 0 && clean.toLowerCase().endsWith('.html')) return 'screens/' + clean;
+          return null;
+        }
+
+        window.addEventListener('click', function(event) {
+          const clicked = clickedElement(event);
+          if (!clicked) return;
+
+          const fileTarget = clicked.closest('[data-prototype-file]');
+          const link = clicked.closest('a[href]');
+          const filePath = fileTarget ? normalizeArtifactPath(fileTarget.getAttribute('data-prototype-file')) : null;
+          const linkPath = link ? normalizeArtifactPath(link.getAttribute('href')) : null;
+          const targetPath = filePath || linkPath;
+
+          if (!targetPath) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof event.stopImmediatePropagation === 'function') {
+            event.stopImmediatePropagation();
+          }
+
+          window.parent.postMessage({
+            type: 'prototype-file-open',
+            path: targetPath
+          }, '*');
+        }, true);
+      })();
+    </script>
+  `;
+}
+
+function withPreviewNavigationBridge(source: string) {
+  const bridgeScript = buildPreviewNavigationBridgeScript();
+
+  if (source.includes("__PM_STUDIO_NAV_BRIDGE__")) return source;
+  if (source.includes("</body>")) return source.replace("</body>", `${bridgeScript}
+</body>`);
+
+  return `${source}
+${bridgeScript}`;
+}
+
+function getScreenIndexFromPath(pack: ProductPack, path?: string) {
+  if (!path) return null;
+
+  const normalizedPath = path.startsWith("prototype/") ? path.slice("prototype/".length) : path;
+  const index = pack.prototype.screens.findIndex(
+    (_screen, screenIndex) => getPrototypeScreenPath(pack, screenIndex) === normalizedPath,
+  );
+
+  return index >= 0 ? index : null;
+}
+
 function updatePackField(pack: ProductPack, id: string, text: string): ProductPack {
   const updated = { ...pack };
   if (id === "project-title") {
@@ -163,6 +345,7 @@ export function StudioPrototypePreview({
   onExportHtml,
   onExportLiveArtifact,
   onOpenPrototypeFile,
+  onSourceChange,
   onSwitchMode,
   previewHtml,
   productPack,
@@ -187,8 +370,12 @@ export function StudioPrototypePreview({
   viewerSubtitle?: string;
   viewerTitle?: string;
   onChange?: (pack: ProductPack) => void;
+  onSourceChange?: (source: string) => void;
 }) {
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
+  const [editHistory, setEditHistory] = useState<PrototypeEditHistoryEntry[]>([]);
+  const [redoHistory, setRedoHistory] = useState<PrototypeEditHistoryEntry[]>([]);
+  const editPatchCounterRef = useRef(0);
   const [viewportParam, setViewportParam] = useState(activeViewport || "desktop");
   const [viewportManuallySelected, setViewportManuallySelected] = useState(Boolean(activeViewport));
   const [zoom, setZoom] = useState(100);
@@ -420,9 +607,15 @@ export function StudioPrototypePreview({
     return <div className="p-8 text-center text-neutral-500">等待生成产品方案包...</div>;
   }
 
-  const sandboxHtml = previewHtml ?? generateSandboxHtml(pack, isEditing, prototypeOptions);
+  const sourceHtml = previewHtml ?? generateSandboxHtml(pack, isEditing, prototypeOptions);
+  const runtimeHtml = isEditing ? withPreviewEditBridge(sourceHtml) : sourceHtml;
+  const sandboxHtml = withPreviewNavigationBridge(runtimeHtml);
+  const editableSource = sourceCode ?? sourceHtml;
   const toolbarTitle = viewerTitle ?? "prototype/index.html";
   const toolbarSubtitle = viewerSubtitle ?? pack.prototype.userFlow;
+  const activeScreenIndex = getScreenIndexFromPath(pack, toolbarTitle);
+  const screenCount = pack.prototype.screens.length;
+  const canNavigateScreens = screenCount > 1 && activeScreenIndex !== null;
   const modeOptions = [
     { label: "预览", value: "预览" as const, icon: Eye },
     { label: "修改", value: "修改" as const, icon: Pencil },
@@ -468,8 +661,56 @@ export function StudioPrototypePreview({
     setExportMenuOpen(false);
   };
 
+  const handleScreenStep = (direction: -1 | 1) => {
+    if (activeScreenIndex === null || screenCount < 2) return;
+
+    const nextIndex = (activeScreenIndex + direction + screenCount) % screenCount;
+    onOpenPrototypeFile?.(getPrototypeScreenPath(pack, nextIndex));
+    setSelectedElement(null);
+  };
+
+  const applySourcePatch = (patch: PrototypeEditPatch, label: string) => {
+    if (!onSourceChange) return false;
+
+    const nextSource = applyPrototypeEditPatch(editableSource, patch);
+    if (nextSource === editableSource) return false;
+
+    const nextPatchIndex = editPatchCounterRef.current + 1;
+    editPatchCounterRef.current = nextPatchIndex;
+
+    const entry: PrototypeEditHistoryEntry = {
+      afterSource: nextSource,
+      beforeSource: editableSource,
+      createdAt: nextPatchIndex,
+      id: `patch-${nextPatchIndex}`,
+      label,
+      patch,
+    };
+
+    onSourceChange(nextSource);
+    setEditHistory((history) => [entry, ...history].slice(0, 20));
+    setRedoHistory([]);
+
+    return true;
+  };
+
   const handleTextChange = (text: string) => {
     if (!selectedElement || !onChange) return;
+
+    if (
+      applySourcePatch(
+        {
+          id: selectedElement.id,
+          kind: "set-text",
+          value: text,
+        },
+        `更新 ${selectedElement.id} 文案`,
+      )
+    ) {
+      setSelectedElement((prev) => (prev ? { ...prev, textContent: text } : null));
+      return;
+    }
+
     const nextPack = updatePackField(pack, selectedElement.id, text);
     onChange(nextPack);
     setSelectedElement((prev) => (prev ? { ...prev, textContent: text } : null));
@@ -477,9 +718,44 @@ export function StudioPrototypePreview({
 
   const handleStyleChange = (key: string, value: string) => {
     if (!selectedElement || !onChange) return;
+
+    if (
+      applySourcePatch(
+        {
+          id: selectedElement.id,
+          kind: "set-style",
+          styles: {
+            [key]: value,
+          },
+        },
+        `调整 ${selectedElement.id} 样式`,
+      )
+    ) {
+      setSelectedElement((prev) => (prev ? { ...prev, styles: { ...prev.styles, [key]: value } } : null));
+      return;
+    }
+
     const nextPack = updatePackStyle(pack, selectedElement.id, key, value);
     onChange(nextPack);
     setSelectedElement((prev) => (prev ? { ...prev, styles: { ...prev.styles, [key]: value } } : null));
+  };
+
+  const handleUndoPatch = () => {
+    const [entry, ...rest] = editHistory;
+    if (!entry || !onSourceChange) return;
+    onSourceChange(entry.beforeSource);
+    setEditHistory(rest);
+    setRedoHistory((history) => [entry, ...history].slice(0, 20));
+    setSelectedElement(null);
+  };
+
+  const handleRedoPatch = () => {
+    const [entry, ...rest] = redoHistory;
+    if (!entry || !onSourceChange) return;
+    onSourceChange(entry.afterSource);
+    setRedoHistory(rest);
+    setEditHistory((history) => [entry, ...history].slice(0, 20));
+    setSelectedElement(null);
   };
 
   // Screen CRUD actions
@@ -667,6 +943,31 @@ export function StudioPrototypePreview({
                 );
               })}
             </div>
+
+            {canNavigateScreens ? (
+              <div className="flex h-9 shrink-0 items-center overflow-hidden rounded-lg border border-neutral-200 bg-white text-xs font-medium text-neutral-600">
+                <button
+                  aria-label="打开上一屏"
+                  className="h-full px-3 transition hover:bg-neutral-50 hover:text-neutral-950"
+                  onClick={() => handleScreenStep(-1)}
+                  type="button"
+                >
+                  上一屏
+                </button>
+                <span className="flex h-full items-center border-x border-neutral-200 px-2.5 text-[11px] tabular-nums text-neutral-400">
+                  {String((activeScreenIndex ?? 0) + 1).padStart(2, "0")}/
+                  {String(screenCount).padStart(2, "0")}
+                </span>
+                <button
+                  aria-label="打开下一屏"
+                  className="h-full px-3 transition hover:bg-neutral-50 hover:text-neutral-950"
+                  onClick={() => handleScreenStep(1)}
+                  type="button"
+                >
+                  下一屏
+                </button>
+              </div>
+            ) : null}
 
             <div className="relative shrink-0" ref={viewportMenuRef}>
               <button
@@ -904,6 +1205,37 @@ export function StudioPrototypePreview({
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
+            </div>
+
+            <div className="border-b border-neutral-200 bg-neutral-50/80 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-neutral-500">
+                  Source patches · {editHistory.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="inline-flex h-7 items-center rounded-md border border-neutral-200 bg-white px-2 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={!editHistory.length}
+                    onClick={handleUndoPatch}
+                    type="button"
+                  >
+                    Undo
+                  </button>
+                  <button
+                    className="inline-flex h-7 items-center rounded-md border border-neutral-200 bg-white px-2 text-[11px] font-medium text-neutral-600 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={!redoHistory.length}
+                    onClick={handleRedoPatch}
+                    type="button"
+                  >
+                    Redo
+                  </button>
+                </div>
+              </div>
+              {editHistory[0] ? (
+                <p className="mt-1 truncate text-[11px] text-neutral-400">Latest: {editHistory[0].label}</p>
+              ) : (
+                <p className="mt-1 text-[11px] text-neutral-400">选择画布元素后，修改会写回当前 HTML source。</p>
+              )}
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3">

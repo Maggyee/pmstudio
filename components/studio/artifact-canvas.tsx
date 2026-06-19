@@ -43,6 +43,7 @@ import {
 } from "@/lib/mock-data";
 import {
   buildPrototypeArtifactBundle,
+  getPrototypeScreenPath,
   prototypeKindOptions,
   prototypeTemplateOptions,
   renderPrototypeFile,
@@ -360,8 +361,14 @@ const fileIdByTab: Record<(typeof studioTabs)[number], string> = {
   总结: "README.md",
 };
 
-function getFileIdForArtifact(artifact?: string) {
-  return fileIdByTab[getTabFromArtifactParam(artifact)];
+function getFileIdForArtifact(artifact?: string, pack?: ProductPack) {
+  const tab = getTabFromArtifactParam(artifact);
+
+  if (tab === "原型" && pack) {
+    return `prototype/${getPrototypeScreenPath(pack, 0)}`;
+  }
+
+  return fileIdByTab[tab];
 }
 
 function getPrototypeStudioFileKind(path: string, mimeType: string): StudioFileKind {
@@ -1048,10 +1055,7 @@ function FilePreviewSurface({
 }) {
   if (file.artifactId === "prototype" && file.kind === "html") {
     const prototypeMode = activeMode === "生成" ? "预览" : activeMode;
-    const previewHtml =
-      prototypeMode === "修改"
-        ? renderPrototypeFile(file.id, productPack, prototypeOptions, true)
-        : sourceValue;
+    const previewHtml = sourceValue;
 
     return (
       <StudioPrototypePreview
@@ -1074,6 +1078,7 @@ function FilePreviewSurface({
           })
         }
         onOpenPrototypeFile={onOpenPrototypeFile}
+        onSourceChange={onSourceChange}
         onSwitchMode={onSwitchMode}
         previewHtml={previewHtml}
         productPack={productPack}
@@ -1765,12 +1770,11 @@ export function ArtifactCanvas({
   providerId?: AgentProviderId;
   workflowDefinition?: WorkflowDefinition;
 }) {
-  const requestedFileId = getFileIdForArtifact(activeArtifact);
+  const initialPack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
+  const requestedFileId = getFileIdForArtifact(activeArtifact, initialPack);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "源码" | "预览">("预览");
   const [currentEvents, setCurrentEvents] = useState(agentEvents);
-  const [currentPack, setCurrentPack] = useState(
-    productPack ?? buildFinSightProductPack(defaultFinSightIdea),
-  );
+  const [currentPack, setCurrentPack] = useState(initialPack);
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportingAction, setExportingAction] = useState<string | null>(null);
   const [lastRunMode, setLastRunMode] = useState<AgentRunMode>("mock");
@@ -2197,7 +2201,7 @@ export function ArtifactCanvas({
       };
     });
     setPrototypeLinkSource(null);
-    openStudioFile(fileIdByTab["原型"]);
+    openStudioFile(getFileIdForArtifact("prototype", currentPackRef.current));
   }
 
   return (
