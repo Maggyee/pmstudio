@@ -31,13 +31,13 @@ The current MVP is deterministic:
 6. The workspace stores the last Product Pack, agent events, and recent run history in browser-local storage, then posts the current Product Pack for edited artifact exports.
 7. The workspace can download continuation handoff packages from the current edited Product Pack: OpenDesign JSON for prototype work and Codex Markdown for artifact continuation.
 8. The workspace maps browser-local Product Packs into a design-file tree and open-file tabs so artifacts are opened, previewed, edited, and exported like OpenDesign project files.
-9. A cloud demo can enable server-side Codex and Claude Code CLI attempts with `PMSTUDIO_ENABLE_CLOUD_AGENTS=1`, while still rendering the stable typed Product Pack until CLI output parsing is implemented.
+9. A cloud demo can enable server-side Codex and Claude Code CLI attempts with `PMSTUDIO_ENABLE_CLOUD_AGENTS=1`; valid CLI JSON deltas are merged into the typed Product Pack, and invalid output falls back to the deterministic pack with an adapter warning.
 
 No real AI provider, subprocess manager, authentication, database, payment, or external OpenDesign API is required for the 2026-06-21 sprint.
 
 ## Next Integration Steps
 
-1. Parse optional Codex CLI output into structured Product Pack deltas after the demo flow is stable.
+1. Expand the Product Pack delta schema as real Codex / Claude runs reveal useful artifact edits beyond the MVP fields.
 2. Add richer PPTX templates and saved-PPTX visual rendering QA.
 3. Add server-side persistence after the browser-local run history MVP is accepted.
 4. Replace downloaded handoff packages with direct OpenDesign/Codex launch integration when those runtimes are available.

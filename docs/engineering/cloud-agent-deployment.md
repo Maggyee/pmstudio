@@ -20,6 +20,7 @@ npm run build
 PMSTUDIO_DEMO_USER=pmstudio \
 PMSTUDIO_DEMO_PASSWORD='<strong-demo-password>' \
 PMSTUDIO_ENABLE_CLOUD_AGENTS=1 \
+PMSTUDIO_AGENT_CLI_TIMEOUT_MS=120000 \
 npm run start
 ```
 

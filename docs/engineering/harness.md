@@ -68,11 +68,11 @@ Detection is intentionally lightweight: `/api/harness` marks Codex or Claude Cod
 `/api/generate` now has an adapter runner boundary:
 
 - `mock`: deterministic in-process Product Pack generation.
-- `codex`: dry-run by default; builds the Codex prompt and command metadata without spawning a subprocess.
-- `claude-code`: dry-run by default; preserves the stream-json adapter contract for later.
+- `codex`: dry-run by default; when local/cloud execution is enabled, writes a temp workspace, runs `codex exec`, parses structured JSON output, and merges a safe Product Pack delta.
+- `claude-code`: dry-run by default; when local/cloud execution is enabled and the CLI is installed, runs stream-json mode through the same Product Pack delta parser.
 - `api-fallback`: dry-run placeholder.
 
-Set `PMSTUDIO_ENABLE_LOCAL_AGENT=1` before starting Next.js to let the Codex provider attempt a local CLI run. Even then, PM Studio still renders the stable typed Product Pack and treats CLI output as adapter metadata until parsing is added.
+Set `PMSTUDIO_ENABLE_LOCAL_AGENT=1` before starting Next.js to let the Codex provider attempt a local CLI run. PM Studio keeps the deterministic Product Pack as fallback, then applies parsed CLI deltas only when the output matches the provider-neutral contract.
 
 For a cloud demo server, `PMSTUDIO_ENABLE_CLOUD_AGENTS=1` enables the same controlled server-side CLI attempt for Codex and Claude Code when their CLIs are installed and authenticated on the host. Keep this behind authentication or a private network; see `docs/engineering/cloud-agent-deployment.md`.
 

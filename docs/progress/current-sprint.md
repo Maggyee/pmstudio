@@ -56,6 +56,7 @@ Sprint window: 2026-06-16 to 2026-06-21.
 - Cloud agent deployment notes added under `docs/engineering/cloud-agent-deployment.md`.
 - `/app` workspace now follows OpenDesign's opened-file model: Product Pack artifacts are surfaced as design files, opened in tabs, previewed in the center, edited through a right-side inspector, and exported from the active file.
 - The old artifact summary/card-heavy workspace surface has been removed from the main app view in favor of a lean file tree, file viewer, inspector, and bottom run composer.
+- Real agent flow branch now adds a provider-neutral CLI result contract, Product Pack delta merge path, temp run workspace files, and fixture tests for Codex/Claude output parsing.
 
 ## In Progress
 

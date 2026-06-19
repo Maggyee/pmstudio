@@ -275,7 +275,7 @@ function getHarnessWorkflow(workflowId: WorkflowId) {
   return workflow;
 }
 
-function getArtifactPayloads(productPack: ProductPack, pmWorkflowDescription?: string) {
+export function getArtifactPayloads(productPack: ProductPack, pmWorkflowDescription?: string) {
   return {
     positioning: productPack.project.positioning,
     "target-users": productPack.project.targetUsers,

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -7,12 +7,21 @@ import { spawn } from "node:child_process";
 import {
   agentProviders,
   generateMockPack,
+  getArtifactPayloads,
   type AdapterRunMetadata,
   type AgentProviderId,
   type GeneratedPack,
   type HarnessEvent,
   type WorkflowId,
 } from "@/lib/agent-harness";
+import {
+  buildAgentCliOutputInstructions,
+  buildAgentCliOutputJsonSchema,
+  extractAgentCliResult,
+  mergeProductPackDelta,
+  type AgentCliResult,
+} from "@/lib/agent-cli-contract";
+import { buildPrototypeArtifactBundle } from "@/lib/prototype-artifacts";
 import type { WorkflowDefinition } from "@/lib/workflow-harness";
 import { summarizeWorkflowDefinition } from "@/lib/workflow-harness";
 
@@ -26,6 +35,7 @@ export type AgentWorkflowRunRequest = {
 const serverAgentEnabled =
   process.env.PMSTUDIO_ENABLE_LOCAL_AGENT === "1" ||
   process.env.PMSTUDIO_ENABLE_CLOUD_AGENTS === "1";
+const agentCliTimeoutMs = Number(process.env.PMSTUDIO_AGENT_CLI_TIMEOUT_MS ?? 120_000);
 
 function getProvider(providerId: AgentProviderId) {
   return agentProviders.find((provider) => provider.id === providerId) ?? agentProviders[0];
@@ -61,6 +71,16 @@ function buildPrompt(pack: GeneratedPack) {
     "- Use OpenDesign as the studio/artifact interaction reference.",
     "- Use PM Skills as the PM reasoning and workflow reference.",
     "- Return concise, structured output. Do not edit repository files for this MVP run.",
+    "- Use the temporary run directory files as reference context; do not run shell commands unless absolutely necessary.",
+    "- Improve the Product Pack through the JSON delta contract instead of rewriting unrelated fields.",
+    "- Keep this adapter run short: return a small, high-confidence delta instead of a full rewritten pack.",
+    "",
+    "Temporary run directory files:",
+    "- current-product-pack.json: current typed Product Pack.",
+    "- workflow.json: workflow metadata and optional user-defined orchestration.",
+    "- prototype-artifact-bundle.json: current OpenDesign-style prototype files.",
+    "- output-contract.md: exact JSON result schema you must return.",
+    "- output-schema.json: machine-readable schema passed to Codex when supported.",
     "",
     `Workflow: ${pack.workflow.title}`,
     pack.workflow.description,
@@ -89,6 +109,8 @@ function buildPrompt(pack: GeneratedPack) {
       null,
       2,
     ),
+    "",
+    "Output contract: return exactly one JSON object matching output-contract.md and output-schema.json.",
   ].join("\n");
 }
 
@@ -115,7 +137,8 @@ function withRunMetadata({
 
 async function runCodexCli(prompt: string, runId: string) {
   const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
-  await mkdir(runDir, { recursive: true });
+  const schemaPath = path.join(runDir, "output-schema.json");
+  const lastMessagePath = path.join(runDir, "last-message.json");
 
   const args = [
     "exec",
@@ -125,6 +148,10 @@ async function runCodexCli(prompt: string, runId: string) {
     "workspace-write",
     "-c",
     "sandbox_workspace_write.network_access=true",
+    "--output-schema",
+    schemaPath,
+    "--output-last-message",
+    lastMessagePath,
     "-C",
     runDir,
   ];
@@ -137,8 +164,8 @@ async function runCodexCli(prompt: string, runId: string) {
     const errors: string[] = [];
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error("Codex run timed out after 45 seconds"));
-    }, 45_000);
+      reject(new Error(`Codex run timed out after ${Math.round(agentCliTimeoutMs / 1000)} seconds`));
+    }, agentCliTimeoutMs);
 
     child.stdout.on("data", (chunk) => chunks.push(String(chunk)));
     child.stderr.on("data", (chunk) => errors.push(String(chunk)));
@@ -149,17 +176,21 @@ async function runCodexCli(prompt: string, runId: string) {
     child.on("close", (code) => {
       clearTimeout(timeout);
 
-      const output = [...chunks, ...errors].join("").trim();
+      void readFile(lastMessagePath, "utf8")
+        .catch(() => "")
+        .then((lastMessage) => {
+          const output = [...chunks, ...errors, lastMessage].join("").trim();
 
-      if (code === 0) {
-        resolve({
-          command: `codex ${args.join(" ")}`,
-          output,
+          if (code === 0) {
+            resolve({
+              command: `codex ${args.join(" ")}`,
+              output,
+            });
+            return;
+          }
+
+          reject(new Error(output || `Codex exited with code ${code}`));
         });
-        return;
-      }
-
-      reject(new Error(output || `Codex exited with code ${code}`));
     });
 
     child.stdin.end(prompt);
@@ -168,7 +199,6 @@ async function runCodexCli(prompt: string, runId: string) {
 
 async function runClaudeCodeCli(prompt: string, runId: string) {
   const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
-  await mkdir(runDir, { recursive: true });
 
   const args = [
     "--print",
@@ -186,8 +216,8 @@ async function runClaudeCodeCli(prompt: string, runId: string) {
     const errors: string[] = [];
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
-      reject(new Error("Claude Code run timed out after 45 seconds"));
-    }, 45_000);
+      reject(new Error(`Claude Code run timed out after ${Math.round(agentCliTimeoutMs / 1000)} seconds`));
+    }, agentCliTimeoutMs);
 
     child.stdout.on("data", (chunk) => chunks.push(String(chunk)));
     child.stderr.on("data", (chunk) => errors.push(String(chunk)));
@@ -213,6 +243,92 @@ async function runClaudeCodeCli(prompt: string, runId: string) {
 
     child.stdin.end(prompt);
   });
+}
+
+async function prepareAgentRunDirectory(pack: GeneratedPack, prompt: string, runId: string) {
+  const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
+  const prototypeArtifactBundle = buildPrototypeArtifactBundle(pack.productPack);
+
+  await mkdir(runDir, { recursive: true });
+  await Promise.all([
+    writeFile(path.join(runDir, "prompt.md"), prompt, "utf8"),
+    writeFile(
+      path.join(runDir, "current-product-pack.json"),
+      JSON.stringify(pack.productPack, null, 2),
+      "utf8",
+    ),
+    writeFile(
+      path.join(runDir, "workflow.json"),
+      JSON.stringify(
+        {
+          workflowId: pack.workflowId,
+          input: pack.input,
+          workflow: pack.workflow,
+          workflowDefinition: pack.workflowDefinition ?? null,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    ),
+    writeFile(
+      path.join(runDir, "prototype-artifact-bundle.json"),
+      JSON.stringify(prototypeArtifactBundle, null, 2),
+      "utf8",
+    ),
+    writeFile(path.join(runDir, "output-contract.md"), buildAgentCliOutputInstructions(), "utf8"),
+    writeFile(
+      path.join(runDir, "output-schema.json"),
+      JSON.stringify(buildAgentCliOutputJsonSchema(), null, 2),
+      "utf8",
+    ),
+  ]);
+
+  return runDir;
+}
+
+function applyCliResultToPack(pack: GeneratedPack, cliResult?: AgentCliResult): GeneratedPack {
+  if (!cliResult?.delta) return pack;
+
+  const productPack = mergeProductPackDelta(pack.productPack, cliResult.delta);
+
+  return {
+    ...pack,
+    productPack,
+    artifacts: getArtifactPayloads(productPack, pack.workflow.description),
+    openDesignPromptPlaceholder: productPack.prototype.openDesignPrompt,
+  };
+}
+
+function buildCliEvents({
+  adapterAgent,
+  cliResult,
+  parsed,
+}: {
+  adapterAgent: string;
+  cliResult?: AgentCliResult;
+  parsed: boolean;
+}): HarnessEvent[] {
+  if (!parsed) {
+    return [
+      {
+        type: "running",
+        agent: adapterAgent,
+        message: "CLI 已执行但未返回有效 JSON delta，已保留稳定 Product Pack fallback。",
+      },
+    ];
+  }
+
+  return [
+    {
+      type: "running",
+      agent: adapterAgent,
+      message: cliResult?.delta
+        ? "CLI 已返回结构化 Product Pack delta，并已合并到当前 workspace。"
+        : "CLI 已返回结构化结果，但没有需要合并的 Product Pack delta。",
+    },
+    ...(cliResult?.events ?? []),
+  ];
 }
 
 export async function runAgentWorkflow({
@@ -254,11 +370,14 @@ export async function runAgentWorkflow({
   if (provider.id === "codex") {
     if (serverAgentEnabled) {
       try {
+        await prepareAgentRunDirectory(pack, prompt, runId);
         const result = await runCodexCli(prompt, runId);
+        const cliResult = extractAgentCliResult(result.output);
+        const parsedPack = applyCliResultToPack(pack, cliResult);
 
         return withRunMetadata({
           runId,
-          pack,
+          pack: parsedPack,
           metadata: {
             providerId: provider.id,
             mode: "codex-cli",
@@ -266,13 +385,11 @@ export async function runAgentWorkflow({
             outputPreview: result.output.slice(0, 1200),
             promptPreview: prompt.slice(0, 700),
           },
-          events: [
-            {
-              type: "running",
-              agent: "Codex Adapter",
-              message: "已通过本地 Codex CLI 执行 PM Studio workflow，当前 Product Pack 仍使用稳定结构渲染。",
-            },
-          ],
+          events: buildCliEvents({
+            adapterAgent: "Codex Adapter",
+            cliResult,
+            parsed: Boolean(cliResult),
+          }),
         });
       } catch (error) {
         return withRunMetadata({
@@ -318,11 +435,14 @@ export async function runAgentWorkflow({
   if (provider.id === "claude-code") {
     if (serverAgentEnabled) {
       try {
+        await prepareAgentRunDirectory(pack, prompt, runId);
         const result = await runClaudeCodeCli(prompt, runId);
+        const cliResult = extractAgentCliResult(result.output);
+        const parsedPack = applyCliResultToPack(pack, cliResult);
 
         return withRunMetadata({
           runId,
-          pack,
+          pack: parsedPack,
           metadata: {
             providerId: provider.id,
             mode: "claude-cli",
@@ -330,13 +450,11 @@ export async function runAgentWorkflow({
             outputPreview: result.output.slice(0, 1200),
             promptPreview: prompt.slice(0, 700),
           },
-          events: [
-            {
-              type: "running",
-              agent: "Claude Code Adapter",
-              message: "已通过服务器 Claude Code CLI 执行 PM Studio workflow，当前 Product Pack 仍使用稳定结构渲染。",
-            },
-          ],
+          events: buildCliEvents({
+            adapterAgent: "Claude Code Adapter",
+            cliResult,
+            parsed: Boolean(cliResult),
+          }),
         });
       } catch (error) {
         return withRunMetadata({
