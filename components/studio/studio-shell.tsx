@@ -11,6 +11,7 @@ import {
   GitBranchPlus,
   RefreshCw,
   Search,
+  Settings2,
   Share2,
   Sparkles,
 } from "lucide-react";
@@ -92,7 +93,14 @@ const fallbackProviders: AgentProvider[] = [
 ];
 
 type HarnessApiResponse = {
+  providerSettings?: ProviderPathSettings;
   providers?: AgentProvider[];
+};
+
+type ProviderPathSettings = {
+  claudeCodePath?: string;
+  codexPath?: string;
+  updatedAt?: string;
 };
 
 type DemoProject = {
@@ -394,20 +402,51 @@ function AgentProviderPicker({
   loading,
   onChange,
   onRefresh,
+  onSaveSettings,
+  providerSettings,
   providers,
+  settingsSaving,
   value,
 }: {
   loading: boolean;
   onChange: (value: AgentProviderId) => void;
   onRefresh: () => void;
+  onSaveSettings: (settings: ProviderPathSettings) => Promise<void>;
+  providerSettings: ProviderPathSettings;
   providers: AgentProvider[];
+  settingsSaving: boolean;
   value: AgentProviderId;
 }) {
   const [open, setOpen] = useState(false);
+  const [draftCodexPath, setDraftCodexPath] = useState(providerSettings.codexPath ?? "");
+  const [draftClaudeCodePath, setDraftClaudeCodePath] = useState(
+    providerSettings.claudeCodePath ?? "",
+  );
   const currentProvider =
     providers.find((provider) => provider.id === value) ??
     fallbackProviders.find((provider) => provider.id === value);
   const statusLabel = getProviderStatusLabel(currentProvider, loading);
+  const settingsDirty =
+    draftCodexPath.trim() !== (providerSettings.codexPath ?? "") ||
+    draftClaudeCodePath.trim() !== (providerSettings.claudeCodePath ?? "");
+
+  async function handleSaveSettings(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    await onSaveSettings({
+      claudeCodePath: draftClaudeCodePath,
+      codexPath: draftCodexPath,
+    });
+  }
+
+  function handleToggleOpen() {
+    if (!open) {
+      setDraftCodexPath(providerSettings.codexPath ?? "");
+      setDraftClaudeCodePath(providerSettings.claudeCodePath ?? "");
+    }
+
+    setOpen(!open);
+  }
 
   return (
     <div
@@ -422,7 +461,7 @@ function AgentProviderPicker({
         active={open}
         icon={<Bot className="h-3.5 w-3.5" />}
         label="智能体"
-        onClick={() => setOpen((current) => !current)}
+        onClick={handleToggleOpen}
         value={currentProvider?.displayName ?? value}
       >
         <span
@@ -443,7 +482,7 @@ function AgentProviderPicker({
         <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
       </button>
       {open ? (
-        <div className="absolute left-1/2 top-full z-50 mt-2 w-[430px] -translate-x-1/2 overflow-hidden rounded-2xl border border-black/10 bg-white p-2 shadow-2xl">
+        <div className="absolute left-1/2 top-full z-50 mt-2 w-[460px] -translate-x-1/2 overflow-hidden rounded-2xl border border-black/10 bg-white p-2 shadow-2xl">
           <div className="px-2 pb-2 pt-1 text-xs font-semibold text-neutral-500">
             {statusLabel} · {getPermissionLabel(currentProvider)}
           </div>
@@ -495,6 +534,48 @@ function AgentProviderPicker({
               </button>
             );
           })}
+          <form
+            className="mt-2 border-t border-black/10 px-2 pb-2 pt-3"
+            onSubmit={handleSaveSettings}
+          >
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-neutral-500">
+              <Settings2 className="h-3.5 w-3.5" />
+              本地 CLI 路径
+            </div>
+            <div className="grid gap-2">
+              <label className="grid gap-1">
+                <span className="text-[11px] font-medium text-neutral-500">Codex</span>
+                <input
+                  className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2.5 font-mono text-[11px] text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+                  onChange={(event) => setDraftCodexPath(event.target.value)}
+                  placeholder="codex 或 /usr/local/bin/codex"
+                  value={draftCodexPath}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-[11px] font-medium text-neutral-500">Claude Code</span>
+                <input
+                  className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2.5 font-mono text-[11px] text-neutral-700 outline-none transition placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+                  onChange={(event) => setDraftClaudeCodePath(event.target.value)}
+                  placeholder="claude 或 /usr/local/bin/claude"
+                  value={draftClaudeCodePath}
+                />
+              </label>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-[11px] leading-4 text-neutral-400">
+                留空则使用 PATH；环境变量会覆盖这里的值。
+              </p>
+              <button
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-neutral-950 px-2.5 text-xs font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={settingsSaving || (!settingsDirty && !loading)}
+                type="submit"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", settingsSaving && "animate-spin")} />
+                {settingsSaving ? "检测中" : "保存并检测"}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
     </div>
@@ -552,6 +633,8 @@ export function StudioShell({
   const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
   const [providers, setProviders] = useState<AgentProvider[]>(fallbackProviders);
   const [providersLoading, setProvidersLoading] = useState(true);
+  const [providerSettings, setProviderSettings] = useState<ProviderPathSettings>({});
+  const [providerSettingsSaving, setProviderSettingsSaving] = useState(false);
 
   useEffect(() => {
     try {
@@ -661,6 +744,10 @@ export function StudioShell({
 
       const data = (await response.json()) as HarnessApiResponse;
 
+      if (data.providerSettings) {
+        setProviderSettings(data.providerSettings);
+      }
+
       if (data.providers?.length) {
         setProviders(data.providers);
       }
@@ -684,6 +771,10 @@ export function StudioShell({
 
         const data = (await response.json()) as HarnessApiResponse;
 
+        if (active && data.providerSettings) {
+          setProviderSettings(data.providerSettings);
+        }
+
         if (active && data.providers?.length) {
           setProviders(data.providers);
         }
@@ -704,6 +795,39 @@ export function StudioShell({
       active = false;
     };
   }, []);
+
+  async function handleSaveProviderSettings(settings: ProviderPathSettings) {
+    setProviderSettingsSaving(true);
+    setProvidersLoading(true);
+
+    try {
+      const response = await fetch("/api/provider-settings", {
+        body: JSON.stringify(settings),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Provider settings update failed");
+      }
+
+      const data = (await response.json()) as HarnessApiResponse;
+
+      setProviderSettings(data.providerSettings ?? settings);
+
+      if (data.providers?.length) {
+        setProviders(data.providers);
+      }
+    } catch {
+      setProviderSettings(settings);
+      setProviders(fallbackProviders);
+    } finally {
+      setProviderSettingsSaving(false);
+      setProvidersLoading(false);
+    }
+  }
 
   async function handleShareWorkspace() {
     try {
@@ -799,7 +923,10 @@ export function StudioShell({
               loading={providersLoading}
               onChange={setSelectedProvider}
               onRefresh={refreshProviders}
+              onSaveSettings={handleSaveProviderSettings}
+              providerSettings={providerSettings}
               providers={providers}
+              settingsSaving={providerSettingsSaving}
               value={selectedProvider}
             />
           </div>

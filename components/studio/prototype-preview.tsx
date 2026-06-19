@@ -162,6 +162,7 @@ export function StudioPrototypePreview({
   isEditing = activeMode === "修改",
   onExportHtml,
   onExportLiveArtifact,
+  onOpenPrototypeFile,
   onSwitchMode,
   previewHtml,
   productPack,
@@ -177,6 +178,7 @@ export function StudioPrototypePreview({
   isEditing?: boolean;
   onExportHtml?: () => void;
   onExportLiveArtifact?: () => void;
+  onOpenPrototypeFile?: (path: string) => void;
   onSwitchMode?: (mode: "修改" | "源码" | "预览") => void;
   previewHtml?: string;
   productPack?: ProductPack;
@@ -302,11 +304,20 @@ export function StudioPrototypePreview({
     function handleMessage(event: MessageEvent) {
       if (event.data && event.data.type === "element-selected") {
         setSelectedElement(event.data);
+        return;
+      }
+
+      if (
+        event.data &&
+        event.data.type === "prototype-file-open" &&
+        typeof event.data.path === "string"
+      ) {
+        onOpenPrototypeFile?.(event.data.path);
       }
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [onOpenPrototypeFile]);
 
   useEffect(() => {
     if (!isEditing) {

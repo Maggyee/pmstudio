@@ -31,3 +31,6 @@ yarn-error.log*
 
 # local reference source checkouts
 /references/sources/
+
+# local PM Studio runtime settings
+/.pmstudio/

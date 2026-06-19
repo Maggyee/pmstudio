@@ -290,9 +290,64 @@ function buildBridgeScript(pack: ProductPack, isEditing: boolean) {
   return `
     <script>
       (function() {
+        window.__PM_STUDIO_PROTOTYPE__ = ${JSON.stringify({
+          artifactId: pack.prototype.liveArtifact.id,
+          productPackId: pack.id,
+        })};
+
+        function getClickedElement(event) {
+          if (!event.target) return null;
+          if (event.target.nodeType === 1) return event.target;
+          return event.target.parentElement || null;
+        }
+
+        function normalizeArtifactPath(rawPath) {
+          if (!rawPath) return null;
+          if (/^[a-z][a-z0-9+.-]*:/i.test(rawPath) || rawPath.charAt(0) === '#') return null;
+
+          var clean = rawPath
+            .split('#')[0]
+            .split('?')[0]
+            .replace(/^\\.\\/+/g, '')
+            .replace(/^\\/+/, '')
+            .replace(/^prototype\\//, '');
+
+          if (!clean || clean.indexOf('../') === 0) return null;
+          if (clean === 'index.html') return clean;
+          if (clean === 'data.json') return clean;
+          if (clean === 'design-manifest.json') return clean;
+          if (clean === 'DESIGN-HANDOFF.md') return clean;
+          if (clean.indexOf('screens/') === 0) return clean;
+          if (/^[^/]+\\.html$/i.test(clean)) return 'screens/' + clean;
+          return null;
+        }
+
+        document.addEventListener('click', function(event) {
+          const clicked = getClickedElement(event);
+          if (!clicked) return;
+
+          const fileTarget = clicked.closest('[data-prototype-file]');
+          const link = clicked.closest('a[href]');
+          const filePath = fileTarget
+            ? normalizeArtifactPath(fileTarget.getAttribute('data-prototype-file'))
+            : null;
+          const linkPath = link ? normalizeArtifactPath(link.getAttribute('href')) : null;
+          const targetPath = filePath || linkPath;
+
+          if (!targetPath) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          window.parent.postMessage({
+            type: 'prototype-file-open',
+            path: targetPath
+          }, '*');
+        }, true);
+
         if (!${isEditing}) {
           document.addEventListener('click', function(event) {
-            const action = event.target.closest('[data-action-button]');
+            const clicked = getClickedElement(event);
+            const action = clicked ? clicked.closest('[data-action-button]') : null;
             if (!action) return;
             event.preventDefault();
             document.querySelectorAll('[data-action-button]').forEach(function(button) {
@@ -325,7 +380,8 @@ function buildBridgeScript(pack: ProductPack, isEditing: boolean) {
         let selectedEl = null;
 
         document.addEventListener('click', function(event) {
-          const target = event.target.closest('[data-od-id]');
+          const clicked = getClickedElement(event);
+          const target = clicked ? clicked.closest('[data-od-id]') : null;
           if (!target) return;
 
           event.preventDefault();
@@ -364,10 +420,6 @@ function buildBridgeScript(pack: ProductPack, isEditing: boolean) {
           }, '*');
         }, true);
 
-        window.__PM_STUDIO_PROTOTYPE__ = ${JSON.stringify({
-          artifactId: pack.prototype.liveArtifact.id,
-          productPackId: pack.id,
-        })};
       })();
     </script>
   `;
@@ -502,7 +554,10 @@ function renderAiWorkspaceScreen(
   const nameId = `screen-${screenIndex}-name`;
   const goalId = `screen-${screenIndex}-goal`;
   const actionId = `screen-${screenIndex}-primaryAction`;
-  const nextScreen = pack.prototype.screens[screenIndex + 1] ?? pack.prototype.screens[0];
+  const screenCount = Math.max(pack.prototype.screens.length, 1);
+  const nextScreenIndex = (screenIndex + 1) % screenCount;
+  const nextScreen = pack.prototype.screens[nextScreenIndex] ?? pack.prototype.screens[0] ?? screen;
+  const nextScreenFile = screenPath(nextScreen, nextScreenIndex);
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -574,7 +629,9 @@ function renderAiWorkspaceScreen(
     <main class="main">
       <div class="topline">
         <p>${escapeHtml(kindLabel(brief.kind))} · ${escapeHtml(templateLabel(brief.templateId))}</p>
-        <button class="od-action secondary" data-action-button="true" data-label="打开下一屏">打开下一屏：${escapeHtml(nextScreen.name)}</button>
+        <button class="od-action secondary" data-action-button="true" data-prototype-file="${escapeHtml(
+          nextScreenFile,
+        )}" data-label="打开下一屏">打开下一屏：${escapeHtml(nextScreen.name)}</button>
       </div>
       <section class="screen-frame" data-od-id="${screenId}" ${getStyleString(pack, screenId)}>
         <div class="screen-hero">
@@ -1018,6 +1075,7 @@ function renderIndexHtml(pack: ProductPack, brief: PrototypeGenerationBrief) {
       </section>
     </div>
   </main>
+  ${buildBridgeScript(pack, false)}
 </body>
 </html>`;
 }

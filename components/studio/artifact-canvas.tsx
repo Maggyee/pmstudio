@@ -1020,6 +1020,7 @@ function FilePreviewSurface({
   generatedSourceValue,
   prototypeExportingFormat,
   prototypeOptions,
+  onOpenPrototypeFile,
   onOpenPrototypeLink,
   onChange,
   onExportAction,
@@ -1035,6 +1036,7 @@ function FilePreviewSurface({
   generatedSourceValue: string;
   prototypeExportingFormat?: "html" | "json" | null;
   prototypeOptions: PrototypeGenerationOptions;
+  onOpenPrototypeFile: (path: string) => void;
   onOpenPrototypeLink: (source: PrdPrototypeSource) => void;
   onChange: (productPack: ProductPack) => void;
   onExportAction: (action: ArtifactAction) => void;
@@ -1071,6 +1073,7 @@ function FilePreviewSurface({
             label: "导出 Live Artifact",
           })
         }
+        onOpenPrototypeFile={onOpenPrototypeFile}
         onSwitchMode={onSwitchMode}
         previewHtml={previewHtml}
         productPack={productPack}
@@ -1829,6 +1832,18 @@ export function ArtifactCanvas({
     setActiveWorkspaceTabId(fileId);
   }, []);
 
+  const openPrototypeFile = useCallback((path: string) => {
+    const normalizedPath = path
+      .trim()
+      .replace(/^\.\/+/, "")
+      .replace(/^\/+/, "")
+      .replace(/^prototype\//, "");
+
+    if (!normalizedPath) return;
+
+    openStudioFile(`prototype/${normalizedPath}`);
+  }, [openStudioFile]);
+
   const openDesignFiles = useCallback(() => {
     setActiveWorkspaceTabId(designFilesTabId);
   }, []);
@@ -2345,6 +2360,7 @@ export function ArtifactCanvas({
                   generatedSourceValue={generatedActiveSourceValue}
                   prototypeExportingFormat={prototypeExportingFormat}
                   prototypeOptions={prototypeOptions}
+                  onOpenPrototypeFile={openPrototypeFile}
                   onOpenPrototypeLink={setPrototypeLinkSource}
                   onChange={setCurrentPack}
                   onExportAction={handleExportAction}

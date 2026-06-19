@@ -21,6 +21,7 @@ import {
   mergeProductPackDelta,
   type AgentCliResult,
 } from "@/lib/agent-cli-contract";
+import { getProviderCommand } from "@/lib/provider-settings";
 import { buildPrototypeArtifactBundle } from "@/lib/prototype-artifacts";
 import type { WorkflowDefinition } from "@/lib/workflow-harness";
 import { summarizeWorkflowDefinition } from "@/lib/workflow-harness";
@@ -136,6 +137,7 @@ function withRunMetadata({
 }
 
 async function runCodexCli(prompt: string, runId: string) {
+  const command = (await getProviderCommand("codex")) ?? "codex";
   const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
   const schemaPath = path.join(runDir, "output-schema.json");
   const lastMessagePath = path.join(runDir, "last-message.json");
@@ -157,7 +159,7 @@ async function runCodexCli(prompt: string, runId: string) {
   ];
 
   return new Promise<{ command: string; output: string }>((resolve, reject) => {
-    const child = spawn("codex", args, {
+    const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
     const chunks: string[] = [];
@@ -183,7 +185,7 @@ async function runCodexCli(prompt: string, runId: string) {
 
           if (code === 0) {
             resolve({
-              command: `codex ${args.join(" ")}`,
+              command: `${command} ${args.join(" ")}`,
               output,
             });
             return;
@@ -198,6 +200,7 @@ async function runCodexCli(prompt: string, runId: string) {
 }
 
 async function runClaudeCodeCli(prompt: string, runId: string) {
+  const command = (await getProviderCommand("claude-code")) ?? "claude";
   const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
 
   const args = [
@@ -209,7 +212,7 @@ async function runClaudeCodeCli(prompt: string, runId: string) {
   ];
 
   return new Promise<{ command: string; output: string }>((resolve, reject) => {
-    const child = spawn("claude", args, {
+    const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
     const chunks: string[] = [];
@@ -232,7 +235,7 @@ async function runClaudeCodeCli(prompt: string, runId: string) {
 
       if (code === 0) {
         resolve({
-          command: `claude ${args.join(" ")}`,
+          command: `${command} ${args.join(" ")}`,
           output,
         });
         return;
