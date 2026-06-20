@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  buildAgentCliOutputJsonSchema,
   extractAgentCliResult,
   mergeProductPackDelta,
 } from "../lib/agent-cli-contract";
@@ -74,6 +75,87 @@ test("extracts Claude stream-json text content", () => {
   const result = extractAgentCliResult(rawOutput);
 
   expect(result?.delta?.prototype?.userFlow).toBe("录入门店数据 -> 生成补货建议 -> 分配执行任务");
+});
+
+test("extracts Codex json event content from the last useful event", () => {
+  const rawOutput = [
+    JSON.stringify({
+      type: "thread.started",
+      thread_id: "thread_123",
+    }),
+    JSON.stringify({
+      type: "item.completed",
+      item: {
+        type: "assistant_message",
+        text: JSON.stringify({
+          schemaVersion: "pmstudio.agent-cli-result.v1",
+          events: [
+            {
+              type: "done",
+              agent: "Codex Adapter",
+              message: "Generated a tighter prototype flow.",
+            },
+          ],
+          delta: {
+            schemaVersion: "pm-product-pack-delta.v1",
+            summary: {
+              nextActions: ["Review prototype navigation", "Validate Codex handoff"],
+            },
+          },
+        }),
+      },
+    }),
+    JSON.stringify({
+      type: "turn.completed",
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 240,
+      },
+    }),
+  ].join("\n");
+
+  const result = extractAgentCliResult(rawOutput);
+
+  expect(result?.events?.[0]).toMatchObject({
+    type: "done",
+    agent: "Codex Adapter",
+  });
+  expect(result?.delta?.summary?.nextActions).toEqual([
+    "Review prototype navigation",
+    "Validate Codex handoff",
+  ]);
+});
+
+test("declares the strict structured output schema expected by Codex", () => {
+  const schema = buildAgentCliOutputJsonSchema();
+
+  expect(schema).toMatchObject({
+    type: "object",
+    additionalProperties: false,
+    required: ["schemaVersion", "events", "delta", "notes"],
+    properties: {
+      schemaVersion: {
+        const: "pmstudio.agent-cli-result.v1",
+      },
+      delta: {
+        required: [
+          "schemaVersion",
+          "project",
+          "prd",
+          "prototype",
+          "research",
+          "competitors",
+          "personas",
+          "roadmap",
+          "summary",
+          "artifactIndex",
+        ],
+        properties: {
+          schemaVersion: { const: "pm-product-pack-delta.v1" },
+        },
+      },
+    },
+  });
 });
 
 test("ignores invalid output and keeps the base pack stable", () => {

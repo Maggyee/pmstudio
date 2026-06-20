@@ -378,7 +378,7 @@ function collectTextFragments(value: unknown, fragments: string[] = []) {
 
   if (isRecord(value)) {
     Object.entries(value).forEach(([key, item]) => {
-      if (["text", "content", "result", "output", "message"].includes(key)) {
+      if (["text", "content", "result", "output", "message", "item"].includes(key)) {
         collectTextFragments(item, fragments);
       }
     });
@@ -669,7 +669,10 @@ export function buildAgentCliOutputJsonSchema() {
           "artifactIndex",
         ],
         properties: {
-          schemaVersion: nullableString,
+          schemaVersion: {
+            type: "string",
+            const: "pm-product-pack-delta.v1",
+          },
           project: {
             type: ["object", "null"],
             additionalProperties: false,
