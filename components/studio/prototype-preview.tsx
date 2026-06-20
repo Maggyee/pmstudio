@@ -1173,7 +1173,7 @@ export function StudioPrototypePreview({
                   height: `${selectedViewport.height}px`,
                 }}
                 className="border-none bg-white"
-                sandbox="allow-scripts"
+                sandbox="allow-scripts allow-same-origin"
               />
             </div>
           </div>

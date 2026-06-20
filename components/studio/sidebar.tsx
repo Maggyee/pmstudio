@@ -88,13 +88,13 @@ export function StudioSidebar({
 }) {
   const [showCreate, setShowCreate] = useState(false);
   const [idea, setIdea] = useState("");
-  const projectTitle = productPack?.project.title ?? "FinSight 智能投研工作台";
+  const projectTitle = productPack?.project.title ?? "未生成项目";
   const projectItems =
     projects?.map((project) => ({
       id: project.id,
       label: project.title,
       meta: project.sourceIdea,
-    })) ?? [{ id: productPack?.id ?? projectTitle, label: projectTitle }];
+    })) ?? [];
   const workflowItems = getPublicPMWorkflows().map((workflow) => ({
     id: workflow.id,
     label: workflow.name,

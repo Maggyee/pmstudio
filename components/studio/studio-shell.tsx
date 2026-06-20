@@ -111,8 +111,8 @@ type DemoProject = {
   updatedAt: string;
 };
 
-const localProjectsStorageKey = "pmstudio:projects:v2";
-const localActiveProjectStorageKey = "pmstudio:active-project-id:v2";
+const localProjectsStorageKey = "pmstudio:projects:v4";
+const localActiveProjectStorageKey = "pmstudio:active-project-id:v4";
 
 const designSystemOptions = [
   {
@@ -617,7 +617,7 @@ export function StudioShell({
     activeProject?.agentEvents ?? agentEvents ?? [],
   );
   const [creatingProject, setCreatingProject] = useState(false);
-  const projectTitle = shellProductPack?.project.title ?? "空白工作区";
+  const projectTitle = shellProductPack?.project.title ?? "未生成项目";
   const [selectedDesignSystem, setSelectedDesignSystem] = useState(
     studioDesignSystems[0] ?? designSystemOptions[0].name,
   );

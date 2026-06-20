@@ -3,11 +3,7 @@ import {
   buildArtifactDocument,
   type PMDocumentSourceItem,
 } from "@/lib/pm-documents";
-import {
-  buildFinSightProductPack,
-  defaultFinSightIdea,
-  type ProductPack,
-} from "@/lib/product-pack";
+import type { ProductPack } from "@/lib/product-pack";
 
 type PrdPrototypeSource = {
   index: number;
@@ -20,13 +16,11 @@ export function PrdPreview({
   productPack,
 }: {
   onOpenPrototypeLink?: (source: PrdPrototypeSource) => void;
-  productPack?: ProductPack;
+  productPack: ProductPack;
 }) {
-  const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
-
   return (
     <DocumentPreview
-      document={buildArtifactDocument("prd", pack)}
+      document={buildArtifactDocument("prd", productPack)}
       onOpenPrototypeLink={onOpenPrototypeLink}
     />
   );

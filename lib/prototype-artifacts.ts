@@ -1101,6 +1101,66 @@ function buildPrototypeData(pack: ProductPack, brief: PrototypeGenerationBrief) 
   };
 }
 
+function buildLiveArtifactJson(pack: ProductPack, brief: PrototypeGenerationBrief) {
+  const data = buildPrototypeData(pack, brief);
+
+  return {
+    schemaVersion: 1,
+    id: pack.prototype.liveArtifact.id,
+    projectId: pack.id,
+    title: `${pack.project.title} Prototype`,
+    slug: slugify(pack.project.title, "prototype"),
+    status: "active",
+    pinned: false,
+    preview: {
+      type: "html",
+      entry: "index.html",
+    },
+    refreshStatus: "never",
+    createdAt: pack.generatedAt,
+    updatedAt: pack.generatedAt,
+    document: {
+      format: "html_template_v1",
+      templatePath: "index.html",
+      generatedPreviewPath: "index.html",
+      dataPath: "data.json",
+      dataJson: data,
+      sourceJson: {
+        tool: "PM Studio",
+        workflow: "prd-to-prototype-linker",
+        briefSchema: brief.schemaVersion,
+        prototypeKind: brief.kind,
+        templateId: brief.templateId,
+      },
+    },
+  };
+}
+
+function buildEntryArtifactManifest(pack: ProductPack, brief: PrototypeGenerationBrief) {
+  return {
+    version: 1,
+    kind: "html",
+    title: `${pack.project.title} Prototype`,
+    entry: "index.html",
+    renderer: "html",
+    status: "complete",
+    exports: ["html", "pdf", "zip"],
+    primary: true,
+    createdAt: pack.generatedAt,
+    updatedAt: pack.generatedAt,
+    sourceSkillId: "pmstudio/prd-to-prototype-linker",
+    designSystemId: null,
+    metadata: {
+      productPackId: pack.id,
+      artifactId: pack.prototype.liveArtifact.id,
+      briefSchema: brief.schemaVersion,
+      prototypeKind: brief.kind,
+      templateId: brief.templateId,
+      generatedBy: "PM Studio",
+    },
+  };
+}
+
 function buildDesignManifest(pack: ProductPack, brief: PrototypeGenerationBrief, files: string[]) {
   const htmlFiles = files.filter((file) => /\.html?$/i.test(file));
   const screenFiles = htmlFiles.filter((file) => file !== "index.html");
@@ -1110,6 +1170,8 @@ function buildDesignManifest(pack: ProductPack, brief: PrototypeGenerationBrief,
     title: `${pack.project.title} prototype`,
     kind: "html",
     entryFile: "index.html",
+    primaryArtifactManifest: "index.html.artifact.json",
+    liveArtifact: "artifact.json",
     sourceFiles: {
       all: files,
       html: htmlFiles,
@@ -1193,6 +1255,8 @@ This artifact bundle follows an OpenDesign-style generation flow: design system 
 ## Source Of Truth
 
 - Primary entry: \`index.html\`
+- Live artifact metadata: \`artifact.json\`
+- Primary HTML manifest: \`index.html.artifact.json\`
 - Design manifest: \`design-manifest.json\`
 - Structured data: \`data.json\`
 - Template: ${templateLabel(brief.templateId)}
@@ -1230,11 +1294,37 @@ export function buildPrototypeArtifactBundle(
 ): PrototypeArtifactBundle {
   const brief = buildPrototypeBrief(pack, options);
   const screenFiles = pack.prototype.screens.map((screen, index) => screenPath(screen, index));
-  const filePaths = ["index.html", ...screenFiles, "data.json", "design-manifest.json", "DESIGN-HANDOFF.md"];
+  const filePaths = [
+    "artifact.json",
+    "index.html.artifact.json",
+    "index.html",
+    ...screenFiles,
+    "data.json",
+    "design-manifest.json",
+    "DESIGN-HANDOFF.md",
+  ];
   const data = buildPrototypeData(pack, brief);
+  const liveArtifact = buildLiveArtifactJson(pack, brief);
+  const entryManifest = buildEntryArtifactManifest(pack, brief);
   const manifest = buildDesignManifest(pack, brief, filePaths);
   const handoff = buildDesignHandoff(pack, brief, filePaths);
   const files: PrototypeArtifactFile[] = [
+    {
+      path: "artifact.json",
+      name: "artifact.json",
+      mimeType: "application/json",
+      purpose: "OpenDesign-style live artifact metadata",
+      editable: true,
+      body: JSON.stringify(liveArtifact, null, 2),
+    },
+    {
+      path: "index.html.artifact.json",
+      name: "index.html.artifact.json",
+      mimeType: "application/json",
+      purpose: "primary HTML artifact manifest",
+      editable: true,
+      body: JSON.stringify(entryManifest, null, 2),
+    },
     {
       path: "index.html",
       name: "index.html",

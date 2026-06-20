@@ -59,10 +59,7 @@ import type {
   HarnessEvent,
   WorkflowId,
 } from "@/lib/agent-harness";
-import {
-  buildBlankProductPack,
-  type ProductPack,
-} from "@/lib/product-pack";
+import type { ProductPack } from "@/lib/product-pack";
 import {
   buildArtifactDocument,
   renderArtifactMarkdown,
@@ -73,9 +70,9 @@ import {
 } from "@/lib/workflow-harness";
 import { cn } from "@/lib/utils";
 
-const localProductPackStorageKey = "pmstudio:last-product-pack:v2";
-const localEventsStorageKey = "pmstudio:last-agent-events:v2";
-const localRunHistoryStorageKey = "pmstudio:run-history:v2";
+const localProductPackStorageKey = "pmstudio:last-product-pack:v4";
+const localEventsStorageKey = "pmstudio:last-agent-events:v4";
+const localRunHistoryStorageKey = "pmstudio:run-history:v4";
 const designFilesTabId = "design-files";
 
 type ExportFormat = ProductPack["artifactIndex"][number]["exportFormats"][number];
@@ -175,14 +172,12 @@ function ArtifactView({
   onExportPrototypeLiveArtifact?: () => void;
   onOpenPrototypeLink?: (source: PrdPrototypeSource) => void;
   onOpenPrototypeSource?: () => void;
-  productPack?: ProductPack;
+  productPack: ProductPack;
   prototypeOptions?: PrototypeGenerationOptions;
   onChange?: (pack: ProductPack) => void;
 }) {
-  const pack = productPack ?? buildBlankProductPack();
-
   if (activeTab === "PRD") {
-    return <PrdPreview productPack={pack} onOpenPrototypeLink={onOpenPrototypeLink} />;
+    return <PrdPreview productPack={productPack} onOpenPrototypeLink={onOpenPrototypeLink} />;
   }
 
   if (activeTab === "原型") {
@@ -199,7 +194,7 @@ function ArtifactView({
             if (mode === "修改") onEditPrototypePrompt?.();
             if (mode === "源码") onOpenPrototypeSource?.();
           }}
-          productPack={pack}
+          productPack={productPack}
           prototypeOptions={prototypeOptions}
           onChange={onChange}
         />
@@ -208,22 +203,22 @@ function ArtifactView({
   }
 
   if (activeTab === "调研") {
-    return <ResearchPreview productPack={pack} />;
+    return <ResearchPreview productPack={productPack} />;
   }
 
   if (activeTab === "竞品") {
-    return <DocumentPreview document={buildArtifactDocument("competitors", pack)} />;
+    return <DocumentPreview document={buildArtifactDocument("competitors", productPack)} />;
   }
 
   if (activeTab === "画像") {
-    return <DocumentPreview document={buildArtifactDocument("personas", pack)} />;
+    return <DocumentPreview document={buildArtifactDocument("personas", productPack)} />;
   }
 
   if (activeTab === "路线图") {
-    return <DocumentPreview document={buildArtifactDocument("roadmap", pack)} />;
+    return <DocumentPreview document={buildArtifactDocument("roadmap", productPack)} />;
   }
 
-  return <SummaryPreview productPack={pack} />;
+  return <SummaryPreview productPack={productPack} />;
 }
 
 const artifactParamByTab: Record<(typeof studioTabs)[number], string> = {
@@ -346,9 +341,11 @@ const fileIdByTab: Record<(typeof studioTabs)[number], string> = {
 };
 
 function getFileIdForArtifact(artifact?: string, pack?: ProductPack) {
+  if (!pack) return undefined;
+
   const tab = getTabFromArtifactParam(artifact);
 
-  if (tab === "原型" && pack) {
+  if (tab === "原型") {
     return `prototype/${getPrototypeScreenPath(pack, 0)}`;
   }
 
@@ -1145,7 +1142,7 @@ function AgentConversationPane({
 }: {
   activeTab: (typeof studioTabs)[number];
   agentEvents?: HarnessEvent[];
-  currentPack: ProductPack;
+  currentPack?: ProductPack;
   demoPrompts: typeof demoPromptPresets;
   intakeAudience: string;
   intakeConstraints: string;
@@ -1180,7 +1177,9 @@ function AgentConversationPane({
       <div className="border-b border-black/10 px-4 py-3">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-emerald-600" />
-          <p className="truncate text-sm font-semibold text-neutral-950">{currentPack.project.title}</p>
+          <p className="truncate text-sm font-semibold text-neutral-950">
+            {currentPack?.project.title ?? "Agent 工作区"}
+          </p>
         </div>
         <p className="mt-1 text-xs text-neutral-500">
           {getProviderLabel(providerId)} · {getRunModeLabel(lastRunMode)}
@@ -1257,14 +1256,27 @@ function AgentConversationPane({
           </p>
         </section>
 
-        <AgentPanel
-          events={agentEvents}
-          productPack={currentPack}
-          runHistory={runHistory}
-          variant="floating"
-        />
+        {currentPack ? (
+          <AgentPanel
+            events={agentEvents}
+            productPack={currentPack}
+            runHistory={runHistory}
+            variant="floating"
+          />
+        ) : (
+          <section className="rounded-xl border border-dashed border-black/10 bg-white p-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500">
+              <Sparkles className="h-3.5 w-3.5 text-[#12a7ff]" />
+              等待 agent 生成
+            </div>
+            <p className="mt-2 text-xs leading-5 text-neutral-500">
+              当前没有 Product Pack、文件、原型或 mock artifact。输入产品想法后，agent 会生成真实可打开的文件。
+            </p>
+          </section>
+        )}
 
-        <section className="mt-3 rounded-xl border border-black/10 bg-white p-3">
+        {currentPack ? (
+          <section className="mt-3 rounded-xl border border-black/10 bg-white p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-xs font-semibold text-neutral-500">本轮产出文件</p>
             <span className="text-[11px] text-neutral-400">{currentPack.artifactIndex.length} 个</span>
@@ -1279,6 +1291,7 @@ function AgentConversationPane({
             ))}
           </div>
         </section>
+        ) : null}
       </div>
 
       <form className="border-t border-black/10 bg-white p-3" onSubmit={onGenerate}>
@@ -1366,6 +1379,39 @@ function AgentConversationPane({
         {runError ? <p className="mt-2 text-xs font-medium text-red-600">{runError}</p> : null}
       </form>
     </aside>
+  );
+}
+
+function EmptyArtifactWorkspace({
+  isGenerating,
+  onFocusRunInput,
+}: {
+  isGenerating: boolean;
+  onFocusRunInput: () => void;
+}) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center bg-[#fbfaf7] p-6">
+      <div className="w-full max-w-md rounded-xl border border-dashed border-black/12 bg-white/70 p-5 text-center shadow-sm">
+        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-950 text-white">
+          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}
+        </div>
+        <p className="mt-3 text-sm font-semibold text-neutral-950">
+          {isGenerating ? "Agent 正在生成文件" : "还没有生成任何 artifact"}
+        </p>
+        <p className="mt-2 text-xs leading-5 text-neutral-500">
+          Product Pack、PRD、prototype screen、manifest 和 handoff 会在运行 agent 后出现在这里。
+        </p>
+        <button
+          className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-neutral-950 px-3 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-neutral-400"
+          disabled={isGenerating}
+          onClick={onFocusRunInput}
+          type="button"
+        >
+          <Sparkles className="h-4 w-4" />
+          聚焦输入
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1754,23 +1800,25 @@ export function ArtifactCanvas({
   providerId?: AgentProviderId;
   workflowDefinition?: WorkflowDefinition;
 }) {
-  const initialPack = productPack ?? buildBlankProductPack();
+  const initialPack = productPack;
   const requestedFileId = getFileIdForArtifact(activeArtifact, initialPack);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "源码" | "预览">("预览");
   const [currentEvents, setCurrentEvents] = useState(agentEvents);
-  const [currentPack, setCurrentPack] = useState(initialPack);
+  const [currentPack, setCurrentPack] = useState<ProductPack | undefined>(initialPack);
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportingAction, setExportingAction] = useState<string | null>(null);
   const [lastRunMode, setLastRunMode] = useState<AgentRunMode>("mock");
   const [runHistory, setRunHistory] = useState<AgentRunHistoryItem[]>([]);
-  const [prompt, setPrompt] = useState(currentPack.sourceIdea);
+  const [prompt, setPrompt] = useState(initialPack?.sourceIdea ?? "");
   const [intakeAudience, setIntakeAudience] = useState("");
   const [intakeOutcome, setIntakeOutcome] = useState("");
   const [intakeConstraints, setIntakeConstraints] = useState("");
   const [runError, setRunError] = useState<string | null>(null);
-  const [activeFileId, setActiveFileId] = useState(requestedFileId);
-  const [activeWorkspaceTabId, setActiveWorkspaceTabId] = useState<WorkspaceTabId>(requestedFileId);
-  const [openFileIds, setOpenFileIds] = useState<string[]>([requestedFileId]);
+  const [activeFileId, setActiveFileId] = useState<string | undefined>(requestedFileId);
+  const [activeWorkspaceTabId, setActiveWorkspaceTabId] = useState<WorkspaceTabId>(
+    requestedFileId ?? designFilesTabId,
+  );
+  const [openFileIds, setOpenFileIds] = useState<string[]>(requestedFileId ? [requestedFileId] : []);
   const [fileSourceDrafts, setFileSourceDrafts] = useState<Record<string, string>>({});
   const [contextCollapsed, setContextCollapsed] = useState(true);
   const [prototypeLinkSource, setPrototypeLinkSource] = useState<PrdPrototypeSource | null>(null);
@@ -1778,33 +1826,38 @@ export function ArtifactCanvas({
   const [prototypeTemplateId, setPrototypeTemplateId] = useState<PrototypeTemplateId>("auto");
   const runInputRef = useRef<HTMLTextAreaElement>(null);
   const activeTabRef = useRef(getTabFromArtifactParam(activeArtifact));
-  const currentPackRef = useRef(currentPack);
+  const currentPackRef = useRef<ProductPack | undefined>(currentPack);
   const prototypeOptions: PrototypeGenerationOptions = {
     designSystem: "PM Studio DESIGN.md",
     kind: prototypeKind,
     templateId: prototypeTemplateId,
   };
-  const studioFiles = getStudioFiles(currentPack, prototypeOptions);
-  const activeFile = studioFiles.find((file) => file.id === activeFileId) ?? studioFiles[0]!;
+  const studioFiles = currentPack ? getStudioFiles(currentPack, prototypeOptions) : [];
+  const activeFile = activeFileId
+    ? studioFiles.find((file) => file.id === activeFileId) ?? studioFiles[0]
+    : studioFiles[0];
   const openFiles = openFileIds
     .map((fileId) => studioFiles.find((file) => file.id === fileId))
     .filter((file): file is StudioFile => Boolean(file));
-  const activeTab = activeFile.tab;
-  const activeSourceDraftKey = `${currentPack.id}:${activeFile.id}`;
-  const generatedActiveSourceValue = renderStudioFileSource(activeFile, currentPack, prototypeOptions);
+  const activeTab = activeFile?.tab ?? getTabFromArtifactParam(activeArtifact);
+  const activeSourceDraftKey = currentPack && activeFile ? `${currentPack.id}:${activeFile.id}` : "";
+  const generatedActiveSourceValue =
+    currentPack && activeFile ? renderStudioFileSource(activeFile, currentPack, prototypeOptions) : "";
   const activeSourceValue =
-    fileSourceDrafts[activeSourceDraftKey] ?? generatedActiveSourceValue;
+    (activeSourceDraftKey ? fileSourceDrafts[activeSourceDraftKey] : undefined) ??
+    generatedActiveSourceValue;
   const activeWorkflowDefinition =
     workflowDefinition ?? getPresetWorkflowDefinition(getWorkflowIdForTab(activeTab));
   const activeWorkflowId = activeWorkflowDefinition?.workflowId ?? getWorkflowIdForTab(activeTab);
-  const projectTitle = currentPack.project.title;
-  const artifactActions = getArtifactActions(activeTab, currentPack);
+  const projectTitle = currentPack?.project.title ?? "未生成项目";
+  const artifactActions = currentPack ? getArtifactActions(activeTab, currentPack) : [];
   const availableModes =
-    activeFile.tab === "原型" ? (["预览", "修改", "源码"] as const) : (["预览", "源码"] as const);
-  const useEmbeddedPrototypeToolbar =
-    activeWorkspaceTabId !== designFilesTabId &&
-    activeFile.artifactId === "prototype" &&
-    activeFile.kind === "html";
+    activeFile?.tab === "原型" ? (["预览", "修改", "源码"] as const) : (["预览", "源码"] as const);
+  const useEmbeddedPrototypeToolbar = activeFile
+    ? activeWorkspaceTabId !== designFilesTabId &&
+      activeFile.artifactId === "prototype" &&
+      activeFile.kind === "html"
+    : false;
   const prototypeExportingFormat =
     exportingAction === "prototype:html" ? "html" : exportingAction === "prototype:json" ? "json" : null;
 
@@ -1849,9 +1902,9 @@ export function ArtifactCanvas({
       const nextFileIds = currentFileIds.filter((item) => item !== fileId);
 
       if (fileId === activeFileId) {
-        const nextActiveFileId = nextFileIds[Math.max(0, currentFileIds.indexOf(fileId) - 1)] ?? nextFileIds[0]!;
+        const nextActiveFileId = nextFileIds[Math.max(0, currentFileIds.indexOf(fileId) - 1)] ?? nextFileIds[0];
         setActiveFileId(nextActiveFileId);
-        setActiveWorkspaceTabId(nextActiveFileId);
+        setActiveWorkspaceTabId(nextActiveFileId ?? designFilesTabId);
       }
 
       return nextFileIds;
@@ -1864,6 +1917,8 @@ export function ArtifactCanvas({
   }, [activeTab, currentPack]);
 
   useEffect(() => {
+    if (!requestedFileId) return;
+
     const timeoutId = window.setTimeout(() => openStudioFile(requestedFileId), 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -1914,6 +1969,13 @@ export function ArtifactCanvas({
       if (storedPack) {
         setCurrentPack(storedPack);
         setPrompt(storedPack.sourceIdea);
+        const nextFileId = getFileIdForArtifact(activeArtifact, storedPack);
+
+        if (nextFileId) {
+          setActiveFileId(nextFileId);
+          setActiveWorkspaceTabId(nextFileId);
+          setOpenFileIds([nextFileId]);
+        }
       }
 
       if (storedEvents) {
@@ -1927,7 +1989,7 @@ export function ArtifactCanvas({
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [productPack]);
+  }, [activeArtifact, productPack]);
 
   useEffect(() => {
     if (!productPack) return;
@@ -1936,12 +1998,21 @@ export function ArtifactCanvas({
       setCurrentPack(productPack);
       setPrompt(productPack.sourceIdea);
       setCurrentEvents(agentEvents);
+      const nextFileId = getFileIdForArtifact(activeArtifact, productPack);
+
+      if (nextFileId) {
+        setActiveFileId(nextFileId);
+        setActiveWorkspaceTabId(nextFileId);
+        setOpenFileIds([nextFileId]);
+      }
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [agentEvents, productPack]);
+  }, [activeArtifact, agentEvents, productPack]);
 
   useEffect(() => {
+    if (!currentPack) return;
+
     window.localStorage.setItem(localProductPackStorageKey, JSON.stringify(currentPack));
     onProductPackChange?.(currentPack);
   }, [currentPack, onProductPackChange]);
@@ -1960,6 +2031,11 @@ export function ArtifactCanvas({
   const handleHandoffAction = useCallback((action: ArtifactAction) => {
     const pack = currentPackRef.current;
     const tab = activeTabRef.current;
+
+    if (!pack) {
+      setRunError("当前没有可交接的 Product Pack。");
+      return;
+    }
 
     if (action.handoffTarget === "open-design") {
       downloadBrowserFile({
@@ -1988,11 +2064,18 @@ export function ArtifactCanvas({
     if (!action.artifactId || !action.format) return;
 
     const pack = currentPackRef.current;
-    const editedSource = fileSourceDrafts[`${pack.id}:${activeFile.id}`];
+    const file = activeFile;
+
+    if (!pack || !file) {
+      setRunError("当前没有可导出的 artifact。");
+      return;
+    }
+
+    const editedSource = fileSourceDrafts[`${pack.id}:${file.id}`];
 
     if (
       action.format === "markdown" &&
-      action.artifactId === activeFile.artifactId &&
+      action.artifactId === file.artifactId &&
       editedSource
     ) {
       downloadBrowserFile({
@@ -2040,7 +2123,7 @@ export function ArtifactCanvas({
     } finally {
       setExportingAction(null);
     }
-  }, [activeFile.artifactId, activeFile.id, fileSourceDrafts, handleHandoffAction]);
+  }, [activeFile, fileSourceDrafts, handleHandoffAction]);
 
   useEffect(() => {
     function focusRunInput() {
@@ -2081,7 +2164,7 @@ export function ArtifactCanvas({
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const baseInput = prompt.trim() || currentPack.sourceIdea;
+    const baseInput = prompt.trim() || currentPack?.sourceIdea || "";
 
     if (!baseInput) {
       setRunError("请先描述你想生成的产品方案。");
@@ -2130,6 +2213,13 @@ export function ArtifactCanvas({
       ].slice(0, 8));
       setPrompt(baseInput);
       setActiveMode("预览");
+      const nextFileId = getFileIdForArtifact("prototype", generated.productPack);
+
+      if (nextFileId) {
+        setActiveFileId(nextFileId);
+        setActiveWorkspaceTabId(nextFileId);
+        setOpenFileIds([nextFileId]);
+      }
     } catch (error) {
       setRunError(error instanceof Error ? error.message : "生成失败");
     } finally {
@@ -2138,10 +2228,14 @@ export function ArtifactCanvas({
   }
 
   function applyPrototypeLink(mode: "create" | "update" | "link") {
-    if (!prototypeLinkSource) return;
+    const packBeforeUpdate = currentPackRef.current;
+
+    if (!prototypeLinkSource || !packBeforeUpdate) return;
 
     const source = prototypeLinkSource;
     setCurrentPack((pack) => {
+      if (!pack) return pack;
+
       const suggestedScreen = makePrototypeScreenFromRequirement(source.requirement, source.index);
       const existingLink = pack.prototype.prdLinks.find((link) => link.requirement === source.requirement);
       const fallbackScreen = pack.prototype.screens[0];
@@ -2192,7 +2286,11 @@ export function ArtifactCanvas({
       };
     });
     setPrototypeLinkSource(null);
-    openStudioFile(getFileIdForArtifact("prototype", currentPackRef.current));
+    const nextFileId = getFileIdForArtifact("prototype", packBeforeUpdate);
+
+    if (nextFileId) {
+      openStudioFile(nextFileId);
+    }
   }
 
   return (
@@ -2200,9 +2298,11 @@ export function ArtifactCanvas({
       <div
         className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[var(--workspace-grid)]"
         style={{
-          ["--workspace-grid" as string]: contextCollapsed
-            ? "minmax(340px,400px) minmax(0,1fr) 52px"
-            : "minmax(340px,400px) minmax(0,1fr) 320px",
+          ["--workspace-grid" as string]: currentPack && activeFile
+            ? contextCollapsed
+              ? "minmax(340px,400px) minmax(0,1fr) 52px"
+              : "minmax(340px,400px) minmax(0,1fr) 320px"
+            : "minmax(340px,400px) minmax(0,1fr)",
         }}
       >
         <AgentConversationPane
@@ -2246,153 +2346,171 @@ export function ArtifactCanvas({
         />
 
         <main className="flex min-h-0 min-w-0 flex-col border-x border-black/10 bg-[#fbfaf7]">
-          <OpenFileTabs
-            activeTabId={activeWorkspaceTabId}
-            files={openFiles.length ? openFiles : [activeFile]}
-            onCloseFile={closeStudioFile}
-            onOpenDesignFiles={openDesignFiles}
-            onOpenFile={openStudioFile}
-          />
+          {currentPack && activeFile ? (
+            <>
+              <OpenFileTabs
+                activeTabId={activeWorkspaceTabId}
+                files={openFiles.length ? openFiles : [activeFile]}
+                onCloseFile={closeStudioFile}
+                onOpenDesignFiles={openDesignFiles}
+                onOpenFile={openStudioFile}
+              />
 
-          <div className="flex min-h-0 flex-1 flex-col">
-            {!useEmbeddedPrototypeToolbar ? (
-            <header className="flex flex-col gap-3 border-b border-black/10 bg-white px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
-                    {activeWorkspaceTabId === designFilesTabId ? (
-                      <FolderOpen className="h-4 w-4" />
-                    ) : (
-                      <StudioFileIcon file={activeFile} />
-                    )}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-neutral-950">
-                      {activeWorkspaceTabId === designFilesTabId ? "设计文件" : activeFile.id}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-neutral-500">
-                      {activeWorkspaceTabId === designFilesTabId
-                        ? "浏览 Product Pack 产物，并打开为工作区文件。"
-                        : activeFile.description}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <div className="flex min-h-0 flex-1 flex-col">
+                {!useEmbeddedPrototypeToolbar ? (
+                  <header className="flex flex-col gap-3 border-b border-black/10 bg-white px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500">
+                          {activeWorkspaceTabId === designFilesTabId ? (
+                            <FolderOpen className="h-4 w-4" />
+                          ) : (
+                            <StudioFileIcon file={activeFile} />
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-neutral-950">
+                            {activeWorkspaceTabId === designFilesTabId ? "设计文件" : activeFile.id}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-neutral-500">
+                            {activeWorkspaceTabId === designFilesTabId
+                              ? "浏览 Product Pack 产物，并打开为工作区文件。"
+                              : activeFile.description}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  aria-label="选择文件"
-                  className="h-9 min-w-[190px] rounded-lg border border-black/10 bg-white px-3 text-xs font-medium text-neutral-700 shadow-sm outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30 xl:hidden"
-                  onChange={(event) => openStudioFile(event.target.value)}
-                  value={activeFile.id}
-                >
-                  {studioFiles.map((file) => (
-                    <option key={file.id} value={file.id}>
-                      {file.name}
-                    </option>
-                  ))}
-                </select>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        aria-label="选择文件"
+                        className="h-9 min-w-[190px] rounded-lg border border-black/10 bg-white px-3 text-xs font-medium text-neutral-700 shadow-sm outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/30 xl:hidden"
+                        onChange={(event) => openStudioFile(event.target.value)}
+                        value={activeFile.id}
+                      >
+                        {studioFiles.map((file) => (
+                          <option key={file.id} value={file.id}>
+                            {file.name}
+                          </option>
+                        ))}
+                      </select>
 
-                <div className="flex rounded-lg border border-black/10 bg-neutral-50 p-1">
-                  {availableModes.map((mode) => (
-                    <button
-                      className={cn(
-                        "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition",
-                        activeMode === mode
-                          ? "bg-white text-neutral-950 shadow-sm"
-                          : "text-neutral-500 hover:text-neutral-950",
-                      )}
-                      key={mode}
-                      onClick={() => setActiveMode(mode)}
-                      type="button"
-                    >
-                      {mode === "预览" ? <Eye className="h-3.5 w-3.5" /> : null}
-                      {mode === "修改" ? <Pencil className="h-3.5 w-3.5" /> : null}
-                      {mode === "源码" ? <Braces className="h-3.5 w-3.5" /> : null}
-                      {mode}
-                    </button>
-                  ))}
-                </div>
+                      <div className="flex rounded-lg border border-black/10 bg-neutral-50 p-1">
+                        {availableModes.map((mode) => (
+                          <button
+                            className={cn(
+                              "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition",
+                              activeMode === mode
+                                ? "bg-white text-neutral-950 shadow-sm"
+                                : "text-neutral-500 hover:text-neutral-950",
+                            )}
+                            key={mode}
+                            onClick={() => setActiveMode(mode)}
+                            type="button"
+                          >
+                            {mode === "预览" ? <Eye className="h-3.5 w-3.5" /> : null}
+                            {mode === "修改" ? <Pencil className="h-3.5 w-3.5" /> : null}
+                            {mode === "源码" ? <Braces className="h-3.5 w-3.5" /> : null}
+                            {mode}
+                          </button>
+                        ))}
+                      </div>
 
-                {activeWorkspaceTabId !== designFilesTabId ? (
-                <div className="flex flex-wrap gap-1">
-                  {artifactActions.map((action, index) => (
-                    <button
-                      className={cn(
-                        "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-medium shadow-sm transition",
-                        index === artifactActions.length - 1
-                          ? "border-neutral-950 bg-neutral-950 text-white hover:bg-black"
-                          : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
-                      )}
-                      disabled={exportingAction === [action.artifactId, action.format].join(":")}
-                      key={action.label}
-                      onClick={() => handleExportAction(action)}
-                      type="button"
-                    >
-                      <ActionIcon action={action} />
-                      {exportingAction === [action.artifactId, action.format].join(":") ? "导出中" : action.label}
-                    </button>
-                  ))}
-                </div>
+                      {activeWorkspaceTabId !== designFilesTabId ? (
+                        <div className="flex flex-wrap gap-1">
+                          {artifactActions.map((action, index) => (
+                            <button
+                              className={cn(
+                                "inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-medium shadow-sm transition",
+                                index === artifactActions.length - 1
+                                  ? "border-neutral-950 bg-neutral-950 text-white hover:bg-black"
+                                  : "border-black/10 bg-white text-neutral-700 hover:bg-neutral-50",
+                              )}
+                              disabled={exportingAction === [action.artifactId, action.format].join(":")}
+                              key={action.label}
+                              onClick={() => handleExportAction(action)}
+                              type="button"
+                            >
+                              <ActionIcon action={action} />
+                              {exportingAction === [action.artifactId, action.format].join(":")
+                                ? "导出中"
+                                : action.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </header>
                 ) : null}
-              </div>
-            </header>
-            ) : null}
 
-            <div className="min-h-0 flex-1 overflow-auto p-4 xl:p-5">
-              {activeWorkspaceTabId === designFilesTabId ? (
-                <DesignFilesWorkspace
-                  activeFileId={activeFile.id}
-                  files={studioFiles}
-                  openFileIds={openFileIds}
-                  onOpenFile={openStudioFile}
-                />
-              ) : (
-                <FilePreviewSurface
-                  activeMode={activeMode}
-                  activeViewport={activeViewport}
-                  file={activeFile}
-                  generatedSourceValue={generatedActiveSourceValue}
-                  prototypeExportingFormat={prototypeExportingFormat}
-                  prototypeOptions={prototypeOptions}
-                  onOpenPrototypeFile={openPrototypeFile}
-                  onOpenPrototypeLink={setPrototypeLinkSource}
-                  onChange={setCurrentPack}
-                  onExportAction={handleExportAction}
-                  onResetSource={() =>
-                    setFileSourceDrafts((drafts) => {
-                      const nextDrafts = { ...drafts };
-                      delete nextDrafts[activeSourceDraftKey];
-                      return nextDrafts;
-                    })
-                  }
-                  onSourceChange={(value) =>
-                    setFileSourceDrafts((drafts) => ({
-                      ...drafts,
-                      [activeSourceDraftKey]: value,
-                    }))
-                  }
-                  onSwitchMode={setActiveMode}
-                  productPack={currentPack}
-                  sourceValue={activeSourceValue}
-                />
-              )}
-            </div>
-          </div>
+                <div className="min-h-0 flex-1 overflow-auto p-4 xl:p-5">
+                  {activeWorkspaceTabId === designFilesTabId ? (
+                    <DesignFilesWorkspace
+                      activeFileId={activeFile.id}
+                      files={studioFiles}
+                      openFileIds={openFileIds}
+                      onOpenFile={openStudioFile}
+                    />
+                  ) : (
+                    <FilePreviewSurface
+                      activeMode={activeMode}
+                      activeViewport={activeViewport}
+                      file={activeFile}
+                      generatedSourceValue={generatedActiveSourceValue}
+                      prototypeExportingFormat={prototypeExportingFormat}
+                      prototypeOptions={prototypeOptions}
+                      onOpenPrototypeFile={openPrototypeFile}
+                      onOpenPrototypeLink={setPrototypeLinkSource}
+                      onChange={setCurrentPack}
+                      onExportAction={handleExportAction}
+                      onResetSource={() =>
+                        setFileSourceDrafts((drafts) => {
+                          const nextDrafts = { ...drafts };
+                          delete nextDrafts[activeSourceDraftKey];
+                          return nextDrafts;
+                        })
+                      }
+                      onSourceChange={(value) => {
+                        if (!activeSourceDraftKey) return;
+
+                        setFileSourceDrafts((drafts) => ({
+                          ...drafts,
+                          [activeSourceDraftKey]: value,
+                        }));
+                      }}
+                      onSwitchMode={setActiveMode}
+                      productPack={currentPack}
+                      sourceValue={activeSourceValue}
+                    />
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <EmptyArtifactWorkspace
+              isGenerating={isGenerating}
+              onFocusRunInput={() => {
+                setActiveMode("生成");
+                window.setTimeout(() => runInputRef.current?.focus(), 0);
+              }}
+            />
+          )}
         </main>
 
-        <FileInspector
-          activeMode={activeMode}
-          agentEvents={currentEvents}
-          collapsed={contextCollapsed}
-          file={activeFile}
-          onToggleCollapsed={() => setContextCollapsed((value) => !value)}
-          productPack={currentPack}
-          runHistory={runHistory}
-        />
+        {currentPack && activeFile ? (
+          <FileInspector
+            activeMode={activeMode}
+            agentEvents={currentEvents}
+            collapsed={contextCollapsed}
+            file={activeFile}
+            onToggleCollapsed={() => setContextCollapsed((value) => !value)}
+            productPack={currentPack}
+            runHistory={runHistory}
+          />
+        ) : null}
       </div>
 
-      {prototypeLinkSource ? (
+      {prototypeLinkSource && currentPack ? (
         <PrdPrototypeLinkDialog
           onApply={applyPrototypeLink}
           onClose={() => setPrototypeLinkSource(null)}

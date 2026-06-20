@@ -9,11 +9,7 @@ import {
 } from "lucide-react";
 
 import type { AgentRunHistoryItem, HarnessEvent } from "@/lib/agent-harness";
-import {
-  buildFinSightProductPack,
-  defaultFinSightIdea,
-  type ProductPack,
-} from "@/lib/product-pack";
+import type { ProductPack } from "@/lib/product-pack";
 import { cn } from "@/lib/utils";
 
 const fallbackEvents: HarnessEvent[] = [
@@ -95,13 +91,12 @@ export function AgentPanel({
   variant = "column",
 }: {
   events?: HarnessEvent[];
-  productPack?: ProductPack;
+  productPack: ProductPack;
   runHistory?: AgentRunHistoryItem[];
   variant?: "column" | "floating";
 }) {
   const floating = variant === "floating";
-  const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
-  const generatedCount = pack.artifactIndex.filter((artifact) => artifact.status === "ready").length;
+  const generatedCount = productPack.artifactIndex.filter((artifact) => artifact.status === "ready").length;
 
   return (
     <div className={cn("space-y-3", floating ? "" : "p-4")}>
@@ -117,7 +112,7 @@ export function AgentPanel({
         </div>
         <div className={cn("space-y-3 text-sm leading-6 text-neutral-700", floating && "text-[13px] leading-6")}>
           <p>
-            PM Studio 正在围绕 {pack.project.title} 生成、校验和整理产品方案包。
+            PM Studio 正在围绕 {productPack.project.title} 生成、校验和整理产品方案包。
           </p>
           <ul className="space-y-2">
             <li className="flex gap-2">
