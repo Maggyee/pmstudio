@@ -60,8 +60,7 @@ import type {
   WorkflowId,
 } from "@/lib/agent-harness";
 import {
-  buildFinSightProductPack,
-  defaultFinSightIdea,
+  buildBlankProductPack,
   type ProductPack,
 } from "@/lib/product-pack";
 import {
@@ -74,9 +73,9 @@ import {
 } from "@/lib/workflow-harness";
 import { cn } from "@/lib/utils";
 
-const localProductPackStorageKey = "pmstudio:last-product-pack:v1";
-const localEventsStorageKey = "pmstudio:last-agent-events:v1";
-const localRunHistoryStorageKey = "pmstudio:run-history:v1";
+const localProductPackStorageKey = "pmstudio:last-product-pack:v2";
+const localEventsStorageKey = "pmstudio:last-agent-events:v2";
+const localRunHistoryStorageKey = "pmstudio:run-history:v2";
 const designFilesTabId = "design-files";
 
 type ExportFormat = ProductPack["artifactIndex"][number]["exportFormats"][number];
@@ -180,7 +179,7 @@ function ArtifactView({
   prototypeOptions?: PrototypeGenerationOptions;
   onChange?: (pack: ProductPack) => void;
 }) {
-  const pack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
+  const pack = productPack ?? buildBlankProductPack();
 
   if (activeTab === "PRD") {
     return <PrdPreview productPack={pack} onOpenPrototypeLink={onOpenPrototypeLink} />;
@@ -320,22 +319,7 @@ function getWorkflowLabelForTab(tab: (typeof studioTabs)[number]) {
   return "完整产品方案包";
 }
 
-const demoPromptPresets = [
-  {
-    label: "完整方案",
-    prompt: defaultFinSightIdea,
-  },
-  {
-    label: "原型联动",
-    prompt:
-      "基于 FinSight 的 PRD，提取核心功能、用户路径和页面需求，生成可预览的财富顾问工作台原型结构。",
-  },
-  {
-    label: "汇报摘要",
-    prompt:
-      "把 FinSight 的产品定位、PRD、原型、市场机会、竞品方向和路线图整理成 AI 提效比赛的项目汇报摘要。",
-  },
-];
+const demoPromptPresets: Array<{ label: string; prompt: string }> = [];
 
 type StudioFileKind = "deck" | "html" | "json" | "markdown";
 
@@ -1770,7 +1754,7 @@ export function ArtifactCanvas({
   providerId?: AgentProviderId;
   workflowDefinition?: WorkflowDefinition;
 }) {
-  const initialPack = productPack ?? buildFinSightProductPack(defaultFinSightIdea);
+  const initialPack = productPack ?? buildBlankProductPack();
   const requestedFileId = getFileIdForArtifact(activeArtifact, initialPack);
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "源码" | "预览">("预览");
   const [currentEvents, setCurrentEvents] = useState(agentEvents);
@@ -2097,7 +2081,14 @@ export function ArtifactCanvas({
   async function handleGenerate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const baseInput = prompt.trim() || currentPack.sourceIdea || defaultFinSightIdea;
+    const baseInput = prompt.trim() || currentPack.sourceIdea;
+
+    if (!baseInput) {
+      setRunError("请先描述你想生成的产品方案。");
+      runInputRef.current?.focus();
+      return;
+    }
+
     const input = buildIntakeInput(baseInput);
     setIsGenerating(true);
     setRunError(null);
