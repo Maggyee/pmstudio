@@ -631,6 +631,7 @@ export function StudioShell({
   );
   const [workflowHarnessOpen, setWorkflowHarnessOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<AgentProviderId>("mock");
+  const [providerManuallySelected, setProviderManuallySelected] = useState(false);
   const [providers, setProviders] = useState<AgentProvider[]>(fallbackProviders);
   const [providersLoading, setProvidersLoading] = useState(true);
   const [providerSettings, setProviderSettings] = useState<ProviderPathSettings>({});
@@ -720,6 +721,22 @@ export function StudioShell({
     });
   }, [upsertProject]);
 
+  const handleAgentEventsChange = useCallback((nextEvents: HarnessEvent[]) => {
+    setShellAgentEvents(nextEvents);
+
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === activeProjectId
+          ? {
+              ...project,
+              agentEvents: nextEvents,
+              updatedAt: new Date().toISOString(),
+            }
+          : project,
+      ),
+    );
+  }, [activeProjectId]);
+
   const handleWorkflowChange = useCallback((workflowId: WorkflowId) => {
     setSelectedWorkflowId(workflowId);
 
@@ -795,6 +812,22 @@ export function StudioShell({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (providerManuallySelected || selectedProvider !== "mock") return;
+
+    const availableRealProvider =
+      providers.find((provider) => provider.id === "codex" && provider.status === "available") ??
+      providers.find((provider) => provider.id === "claude-code" && provider.status === "available");
+
+    if (!availableRealProvider) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setSelectedProvider(availableRealProvider.id);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [providerManuallySelected, providers, selectedProvider]);
 
   async function handleSaveProviderSettings(settings: ProviderPathSettings) {
     setProviderSettingsSaving(true);
@@ -921,7 +954,10 @@ export function StudioShell({
             </button>
             <AgentProviderPicker
               loading={providersLoading}
-              onChange={setSelectedProvider}
+              onChange={(providerId) => {
+                setProviderManuallySelected(true);
+                setSelectedProvider(providerId);
+              }}
               onRefresh={refreshProviders}
               onSaveSettings={handleSaveProviderSettings}
               providerSettings={providerSettings}
@@ -996,8 +1032,7 @@ export function StudioShell({
             activeArtifact={activeArtifact}
             activeViewport={activeViewport}
             agentEvents={shellAgentEvents}
-            key={activeProjectId}
-            onAgentEventsChange={setShellAgentEvents}
+            onAgentEventsChange={handleAgentEventsChange}
             onProductPackChange={handleProductPackChange}
             productPack={shellProductPack}
             providerId={selectedProvider}

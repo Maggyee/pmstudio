@@ -87,16 +87,33 @@ function formatRunTime(value: string) {
 export function AgentPanel({
   events = fallbackEvents,
   productPack,
+  isGenerating = false,
   runHistory = [],
+  visibleArtifactIds,
   variant = "column",
 }: {
   events?: HarnessEvent[];
+  isGenerating?: boolean;
   productPack: ProductPack;
   runHistory?: AgentRunHistoryItem[];
+  visibleArtifactIds?: string[];
   variant?: "column" | "floating";
 }) {
   const floating = variant === "floating";
-  const generatedCount = productPack.artifactIndex.filter((artifact) => artifact.status === "ready").length;
+  const visibleArtifactIdSet = visibleArtifactIds?.length ? new Set(visibleArtifactIds) : undefined;
+  const visibleArtifacts = visibleArtifactIdSet
+    ? productPack.artifactIndex.filter((artifact) => visibleArtifactIdSet.has(artifact.id))
+    : productPack.artifactIndex;
+  const generatedCount = visibleArtifacts.filter((artifact) => artifact.status === "ready").length;
+  const hasDoneEvent = events.some((event) => event.type === "done");
+  const hasRunningEvent = events.some((event) => event.type === "running" || event.type === "queued");
+  const statusLabel = hasDoneEvent || !isGenerating ? "已完成" : hasRunningEvent ? "生成中" : "已就绪";
+  const statusClassName =
+    statusLabel === "已完成"
+      ? "border-emerald-500/10 bg-emerald-50/80 text-emerald-700"
+      : statusLabel === "生成中"
+        ? "border-blue-500/10 bg-blue-50/80 text-blue-700"
+        : "border-black/10 bg-neutral-50 text-neutral-500";
 
   return (
     <div className={cn("space-y-3", floating ? "" : "p-4")}>
@@ -112,7 +129,8 @@ export function AgentPanel({
         </div>
         <div className={cn("space-y-3 text-sm leading-6 text-neutral-700", floating && "text-[13px] leading-6")}>
           <p>
-            PM Studio 正在围绕 {productPack.project.title} 生成、校验和整理产品方案包。
+            PM Studio {statusLabel === "生成中" ? "正在围绕" : "已围绕"} {productPack.project.title}
+            {statusLabel === "生成中" ? " 生成、校验和整理当前工作流产物。" : " 整理出当前工作流产物。"}
           </p>
           <ul className="space-y-2">
             <li className="flex gap-2">
@@ -135,8 +153,8 @@ export function AgentPanel({
       >
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm font-semibold">编排进度</p>
-          <span className="rounded-full border border-blue-500/10 bg-blue-50/80 px-2 py-1 text-xs font-medium text-blue-700">
-            生成中
+          <span className={cn("rounded-full border px-2 py-1 text-xs font-medium", statusClassName)}>
+            {statusLabel}
           </span>
         </div>
         <div className="space-y-3">

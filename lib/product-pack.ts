@@ -19,6 +19,15 @@ export type ProductPackArtifactIndexItem = {
   exportFormats: Array<"markdown" | "html" | "pdf" | "pptx" | "json">;
 };
 
+export type ProductPackGeneratedPrototypeFile = {
+  path: string;
+  name?: string;
+  mimeType: string;
+  purpose: string;
+  editable?: boolean;
+  body: string;
+};
+
 export type ProductPack = {
   schemaVersion: "pm-product-pack.v1";
   id: string;
@@ -68,6 +77,11 @@ export type ProductPack = {
         mimeType: string;
         purpose: string;
       }>;
+    };
+    generatedArtifact?: {
+      schemaVersion: "pmstudio.generated-prototype-files.v1";
+      entryFile: "index.html";
+      files: ProductPackGeneratedPrototypeFile[];
     };
     stylesOverride?: Record<string, Record<string, string>>;
   };

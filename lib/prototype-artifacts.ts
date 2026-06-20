@@ -1287,6 +1287,60 @@ ${files.map((file) => `- \`${file}\``).join("\n")}
 `;
 }
 
+function normalizeGeneratedPrototypePath(path: string) {
+  const normalized = path
+    .trim()
+    .replace(/^\.\/+/, "")
+    .replace(/^\/+/, "")
+    .replace(/^prototype\//, "");
+
+  if (!normalized || normalized.includes("\0")) return undefined;
+  if (normalized.split("/").some((segment) => segment === "..")) return undefined;
+  if (!/\.(html?|css|js|json|md|txt)$/i.test(normalized)) return undefined;
+
+  return normalized;
+}
+
+function getGeneratedPrototypeFiles(pack: ProductPack): PrototypeArtifactFile[] {
+  const generated = pack.prototype.generatedArtifact;
+
+  if (!generated?.files?.length) return [];
+
+  const seen = new Set<string>();
+
+  return generated.files
+    .map((file) => {
+      const normalizedPath = normalizeGeneratedPrototypePath(file.path);
+
+      if (!normalizedPath || seen.has(normalizedPath)) return undefined;
+      seen.add(normalizedPath);
+
+      return {
+        path: normalizedPath,
+        name: file.name ?? normalizedPath.split("/").pop() ?? normalizedPath,
+        mimeType: file.mimeType,
+        purpose: file.purpose,
+        editable: file.editable ?? true,
+        body: file.body,
+      };
+    })
+    .filter((file): file is PrototypeArtifactFile => Boolean(file));
+}
+
+function mergeGeneratedPrototypeFiles(
+  fallbackFiles: PrototypeArtifactFile[],
+  generatedFiles: PrototypeArtifactFile[],
+) {
+  if (!generatedFiles.length) return fallbackFiles;
+
+  const generatedByPath = new Map(generatedFiles.map((file) => [file.path, file]));
+  const merged = fallbackFiles.map((file) => generatedByPath.get(file.path) ?? file);
+  const fallbackPaths = new Set(fallbackFiles.map((file) => file.path));
+  const extraGeneratedFiles = generatedFiles.filter((file) => !fallbackPaths.has(file.path));
+
+  return [...merged, ...extraGeneratedFiles];
+}
+
 export function buildPrototypeArtifactBundle(
   pack: ProductPack,
   options: PrototypeGenerationOptions = {},
@@ -1294,21 +1348,23 @@ export function buildPrototypeArtifactBundle(
 ): PrototypeArtifactBundle {
   const brief = buildPrototypeBrief(pack, options);
   const screenFiles = pack.prototype.screens.map((screen, index) => screenPath(screen, index));
-  const filePaths = [
+  const generatedFiles = getGeneratedPrototypeFiles(pack);
+  const filePaths = Array.from(new Set([
     "artifact.json",
     "index.html.artifact.json",
     "index.html",
     ...screenFiles,
+    ...generatedFiles.map((file) => file.path),
     "data.json",
     "design-manifest.json",
     "DESIGN-HANDOFF.md",
-  ];
+  ]));
   const data = buildPrototypeData(pack, brief);
   const liveArtifact = buildLiveArtifactJson(pack, brief);
   const entryManifest = buildEntryArtifactManifest(pack, brief);
   const manifest = buildDesignManifest(pack, brief, filePaths);
   const handoff = buildDesignHandoff(pack, brief, filePaths);
-  const files: PrototypeArtifactFile[] = [
+  const fallbackFiles: PrototypeArtifactFile[] = [
     {
       path: "artifact.json",
       name: "artifact.json",
@@ -1366,6 +1422,7 @@ export function buildPrototypeArtifactBundle(
       body: handoff,
     },
   ];
+  const files = mergeGeneratedPrototypeFiles(fallbackFiles, generatedFiles);
 
   return {
     schemaVersion: "pmstudio.prototype-artifact-bundle.v1",

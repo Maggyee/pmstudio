@@ -22,7 +22,7 @@ import {
   type AgentCliResult,
 } from "@/lib/agent-cli-contract";
 import { getProviderCommand } from "@/lib/provider-settings";
-import { buildPrototypeArtifactBundle } from "@/lib/prototype-artifacts";
+import { buildPrototypeBrief } from "@/lib/prototype-artifacts";
 import type { WorkflowDefinition } from "@/lib/workflow-harness";
 import { summarizeWorkflowDefinition } from "@/lib/workflow-harness";
 
@@ -36,13 +36,33 @@ export type AgentWorkflowRunRequest = {
 const serverAgentEnabled =
   process.env.PMSTUDIO_ENABLE_LOCAL_AGENT === "1" ||
   process.env.PMSTUDIO_ENABLE_CLOUD_AGENTS === "1";
-const agentCliTimeoutMs = Number(process.env.PMSTUDIO_AGENT_CLI_TIMEOUT_MS ?? 120_000);
+const agentCliTimeoutMs = Number(process.env.PMSTUDIO_AGENT_CLI_TIMEOUT_MS ?? 240_000);
 
 function getProvider(providerId: AgentProviderId) {
   return agentProviders.find((provider) => provider.id === providerId) ?? agentProviders[0];
 }
 
+function packShouldGeneratePrototype(pack: GeneratedPack) {
+  const outputArtifactIds = new Set([
+    ...pack.workflow.outputArtifacts.map((artifact) => artifact.id),
+    ...(pack.workflowDefinition?.outputArtifactIds ?? []),
+  ]);
+  const hasPrototypeStep = pack.workflowDefinition?.steps.some(
+    (step) => step.enabled && step.kind === "prototype",
+  );
+
+  return (
+    pack.workflowId === "idea-to-product-pack" ||
+    pack.workflowId === "prd-to-prototype-linker" ||
+    Boolean(hasPrototypeStep) ||
+    ["user-flow", "prototype-structure", "prototype-brief", "prototype-preview"].some((artifactId) =>
+      outputArtifactIds.has(artifactId),
+    )
+  );
+}
+
 function buildPrompt(pack: GeneratedPack) {
+  const includePrototype = packShouldGeneratePrototype(pack);
   const outputArtifacts = pack.workflow.outputArtifacts
     .map((artifact) => `- ${artifact.title}: ${artifact.description}`)
     .join("\n");
@@ -63,25 +83,36 @@ function buildPrompt(pack: GeneratedPack) {
     "You are the PM Studio agent runner.",
     "",
     "Mission:",
-    "Turn a product idea into a review-ready product artifact pack for a product manager.",
+    "Generate the selected product-planning artifacts live from the user's current idea.",
+    "Act like OpenDesign's artifact generator: understand the brief, choose the right product surface, generate concrete artifacts, and return structured JSON that PM Studio can render immediately.",
     "",
     "Guardrails:",
     "- PM Studio is the competition product.",
-    "- FinSight can remain the generated demo project when the input is wealth-management related.",
-    "- Preserve the existing DESIGN.md visual direction; do not propose a redesign.",
-    "- Use OpenDesign as the studio/artifact interaction reference.",
-    "- Use PM Skills as the PM reasoning and workflow reference.",
+    "- Use the user's product idea as the source of truth. Do not keep the deterministic fallback's domain, title, screens, features, users, or competitors unless they actually match the user's brief.",
+    "- Use OpenDesign as the artifact-generation reference: produce inspectable product screens, real HTML files, manifest-ready structure, and concise generation events.",
+    "- Use PM Skills as the PM reasoning reference: PRD sections, user stories, assumptions, metrics, roadmap, personas, market and competitor thinking should be product-specific.",
     "- Return concise, structured output. Do not edit repository files for this MVP run.",
     "- Use the temporary run directory files as reference context; do not run shell commands unless absolutely necessary.",
-    "- Improve the Product Pack through the JSON delta contract instead of rewriting unrelated fields.",
-    "- Keep this adapter run short: return a small, high-confidence delta instead of a full rewritten pack.",
+    "- Return a JSON delta that fully replaces every artifact field needed by the selected workflow.",
+    "- For PRD-only workflows, focus on PRD and summary. Do not fabricate prototype files.",
+    includePrototype
+      ? "- For prototype workflows, generate domain-specific prototype screens and include delta.prototype.generatedArtifact.files containing real HTML. This is the actual prototype source PM Studio will preview."
+      : "- This workflow does not require prototype output. Do not generate prototype HTML files for this run.",
+    includePrototype
+      ? "- Keep prototype generatedArtifact compact: return index.html and one primary screen HTML file only. Keep each HTML body under 7,000 characters. Represent additional screens in delta.prototype.screens rather than writing every screen body."
+      : "",
+    "- Avoid generic placeholders such as 工作台首页, 数据录入页, AI 分析页 unless the user explicitly asked for that kind of business console.",
+    "- Generated prototype HTML must look like the requested product's interface. A reading app should look like a reading app; a CRM should look like a CRM; a game launcher should look like a game launcher.",
     "",
     "Temporary run directory files:",
     "- current-product-pack.json: current typed Product Pack.",
     "- workflow.json: workflow metadata and optional user-defined orchestration.",
-    "- prototype-artifact-bundle.json: current OpenDesign-style prototype files.",
+    includePrototype
+      ? "- prototype-artifact-bundle.json: compact prototype brief/context. It intentionally omits fallback HTML bodies."
+      : "- prototype-artifact-bundle.json: intentionally minimal because this workflow does not output a prototype.",
     "- output-contract.md: exact JSON result schema you must return.",
     "- output-schema.json: machine-readable schema passed to Codex when supported.",
+    "- DESIGN.md: PM Studio visual constraints for generated artifacts.",
     "",
     `Workflow: ${pack.workflow.title}`,
     pack.workflow.description,
@@ -99,7 +130,7 @@ function buildPrompt(pack: GeneratedPack) {
     "Input idea:",
     pack.input,
     "",
-    "Current deterministic Product Pack summary:",
+    "Fallback Product Pack summary for schema shape only. Replace its content when it does not match the user's idea:",
     JSON.stringify(
       {
         project: pack.productPack.project,
@@ -111,7 +142,10 @@ function buildPrompt(pack: GeneratedPack) {
       2,
     ),
     "",
-    "Output contract: return exactly one JSON object matching output-contract.md and output-schema.json.",
+    "Output contract:",
+    "- Return exactly one JSON object matching output-contract.md and output-schema.json.",
+    "- Include events that explain what was generated and which artifact each step produced.",
+    "- Set notes to short adapter-safe notes only; do not put raw chain-of-thought there.",
   ].join("\n");
 }
 
@@ -148,8 +182,11 @@ async function runCodexCli(prompt: string, runId: string) {
     "--skip-git-repo-check",
     "--sandbox",
     "workspace-write",
-    "-c",
-    "sandbox_workspace_write.network_access=true",
+      "-c",
+      "sandbox_workspace_write.network_access=true",
+      "--ignore-rules",
+      "--ignore-user-config",
+      "--ephemeral",
     "--output-schema",
     schemaPath,
     "--output-last-message",
@@ -250,11 +287,44 @@ async function runClaudeCodeCli(prompt: string, runId: string) {
 
 async function prepareAgentRunDirectory(pack: GeneratedPack, prompt: string, runId: string) {
   const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
-  const prototypeArtifactBundle = buildPrototypeArtifactBundle(pack.productPack);
+  const includePrototype = packShouldGeneratePrototype(pack);
+  const prototypeArtifactBundle = includePrototype
+    ? {
+        schemaVersion: "pmstudio.prototype-generation-context.v1",
+        artifactId: "prototype",
+        projectId: pack.productPack.id,
+        brief: buildPrototypeBrief(pack.productPack),
+        currentScreens: pack.productPack.prototype.screens,
+        prdLinks: pack.productPack.prototype.prdLinks,
+        expectedGeneratedArtifact: {
+          entryFile: "index.html",
+          files: [
+            {
+              path: "index.html",
+              purpose: "compact launcher or first product screen",
+            },
+            {
+              path: "screens/01-primary.html",
+              purpose: "primary user-facing product screen",
+            },
+          ],
+        },
+      }
+    : {
+        skipped: true,
+        reason: "Current workflow does not output prototype artifacts.",
+        workflowId: pack.workflowId,
+      };
+  const designMd = await readFile(path.join(process.cwd(), "DESIGN.md"), "utf8").catch(() => "");
 
   await mkdir(runDir, { recursive: true });
   await Promise.all([
     writeFile(path.join(runDir, "prompt.md"), prompt, "utf8"),
+    writeFile(
+      path.join(runDir, "DESIGN.md"),
+      designMd || "Use PM Studio's neutral workspace style, clear hierarchy, and responsive artifact previews.",
+      "utf8",
+    ),
     writeFile(
       path.join(runDir, "current-product-pack.json"),
       JSON.stringify(pack.productPack, null, 2),
@@ -279,10 +349,14 @@ async function prepareAgentRunDirectory(pack: GeneratedPack, prompt: string, run
       JSON.stringify(prototypeArtifactBundle, null, 2),
       "utf8",
     ),
-    writeFile(path.join(runDir, "output-contract.md"), buildAgentCliOutputInstructions(), "utf8"),
+    writeFile(
+      path.join(runDir, "output-contract.md"),
+      buildAgentCliOutputInstructions({ includePrototype }),
+      "utf8",
+    ),
     writeFile(
       path.join(runDir, "output-schema.json"),
-      JSON.stringify(buildAgentCliOutputJsonSchema(), null, 2),
+      JSON.stringify(buildAgentCliOutputJsonSchema({ includePrototype }), null, 2),
       "utf8",
     ),
   ]);

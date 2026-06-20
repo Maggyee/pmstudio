@@ -1,5 +1,8 @@
 import type { HarnessEvent } from "@/lib/agent-harness";
-import type { ProductPack } from "@/lib/product-pack";
+import type {
+  ProductPack,
+  ProductPackGeneratedPrototypeFile,
+} from "@/lib/product-pack";
 
 export type ProductPackDelta = {
   schemaVersion?: "pm-product-pack-delta.v1";
@@ -90,6 +93,39 @@ function normalizePrdLink(item: JsonRecord) {
   if (!requirement || !screen || !rationale) return undefined;
 
   return { requirement, screen, rationale };
+}
+
+function normalizeGeneratedPrototypeFile(item: JsonRecord): ProductPackGeneratedPrototypeFile | undefined {
+  const path = asString(item.path);
+  const body = asString(item.body);
+  const mimeType = asString(item.mimeType) ?? "text/html";
+  const purpose = asString(item.purpose) ?? "agent-generated prototype file";
+  const name = asString(item.name);
+
+  if (!path || !body) return undefined;
+
+  return {
+    path,
+    name,
+    mimeType,
+    purpose,
+    editable: item.editable === false ? false : true,
+    body,
+  };
+}
+
+function normalizeGeneratedArtifact(value: unknown): ProductPack["prototype"]["generatedArtifact"] | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const files = asRecordArray(value.files, normalizeGeneratedPrototypeFile);
+
+  if (!files?.length) return undefined;
+
+  return {
+    schemaVersion: "pmstudio.generated-prototype-files.v1",
+    entryFile: "index.html",
+    files,
+  };
 }
 
 function normalizeMarketOpportunity(item: JsonRecord) {
@@ -228,6 +264,11 @@ function normalizeProductPackDelta(value: unknown): ProductPackDelta | undefined
       screens: asRecordArray(prototype.screens, normalizeScreen),
       prdLinks: asRecordArray(prototype.prdLinks, normalizePrdLink),
       openDesignPrompt: asString(prototype.openDesignPrompt),
+      generatedArtifact:
+        normalizeGeneratedArtifact(prototype.generatedArtifact) ??
+        normalizeGeneratedArtifact({
+          files: prototype.generatedFiles ?? prototype.files,
+        }),
       stylesOverride: normalizeStylesOverride(prototype.stylesOverride),
     };
   }
@@ -471,7 +512,11 @@ export function mergeProductPackDelta(base: ProductPack, delta?: ProductPackDelt
   };
 }
 
-export function buildAgentCliOutputInstructions() {
+export function buildAgentCliOutputInstructions({
+  includePrototype = true,
+}: {
+  includePrototype?: boolean;
+} = {}) {
   return [
     "Your final response must contain exactly one JSON object. Do not wrap it in Markdown.",
     "Use this schema:",
@@ -522,6 +567,22 @@ export function buildAgentCliOutputInstructions() {
               },
             ],
             openDesignPrompt: "Optional prototype continuation prompt",
+            generatedArtifact: includePrototype
+              ? {
+                  schemaVersion: "pmstudio.generated-prototype-files.v1",
+                  entryFile: "index.html",
+                  files: [
+                    {
+                      path: "index.html",
+                      name: "index.html",
+                      mimeType: "text/html",
+                      purpose: "Agent-generated prototype entry file",
+                      editable: true,
+                      body: "<!doctype html><html>...</html>",
+                    },
+                  ],
+                }
+              : null,
           },
           summary: {
             headline: "Optional review headline",
@@ -534,12 +595,21 @@ export function buildAgentCliOutputInstructions() {
       null,
       2,
     ),
-    "Only include fields you are improving. Keep arrays complete for any field you include.",
+    "If the selected workflow includes PRD output, include complete PRD arrays that directly answer the user's product idea.",
+    includePrototype
+      ? "This workflow includes prototype output: include complete prototype screens and generatedArtifact.files with real HTML for index.html plus one primary screen at screens/01-primary.html. Keep each HTML body under 7,000 characters. The HTML must look like the requested product, not a generic dashboard unless the brief asks for a dashboard."
+      : "This workflow does not include prototype output: set prototype to null or omit prototype entirely.",
+    "Use concrete product-specific UI copy, states, modules, and navigation. Do not keep placeholder screen names such as 工作台首页, 数据录入页, AI 分析页 unless those are truly the requested product.",
+    "Keep arrays complete for any field you include.",
     "Do not edit the PM Studio repository. Work only from the files in this temporary run directory.",
   ].join("\n\n");
 }
 
-export function buildAgentCliOutputJsonSchema() {
+export function buildAgentCliOutputJsonSchema({
+  includePrototype = true,
+}: {
+  includePrototype?: boolean;
+} = {}) {
   const nullableString = { type: ["string", "null"] };
   const nullableStringArray = {
     type: ["array", "null"],
@@ -580,6 +650,37 @@ export function buildAgentCliOutputJsonSchema() {
       requirement: { type: "string" },
       screen: { type: "string" },
       rationale: { type: "string" },
+    },
+  };
+  const generatedPrototypeFile = {
+    type: "object",
+    additionalProperties: false,
+    required: ["path", "name", "mimeType", "purpose", "editable", "body"],
+    properties: {
+      path: { type: "string" },
+      name: nullableString,
+      mimeType: { type: "string" },
+      purpose: { type: "string" },
+      editable: { type: "boolean" },
+      body: { type: "string" },
+    },
+  };
+  const generatedArtifactShape = {
+    additionalProperties: false,
+    required: ["schemaVersion", "entryFile", "files"],
+    properties: {
+      schemaVersion: {
+        type: "string",
+        const: "pmstudio.generated-prototype-files.v1",
+      },
+      entryFile: {
+        type: "string",
+        const: "index.html",
+      },
+      files: {
+        type: "array",
+        items: generatedPrototypeFile,
+      },
     },
   };
   const marketOpportunity = {
@@ -626,6 +727,30 @@ export function buildAgentCliOutputJsonSchema() {
         items: { type: "string" },
       },
     },
+  };
+
+  const prototypeRequired = includePrototype
+    ? ["userFlow", "screens", "prdLinks", "openDesignPrompt", "generatedArtifact"]
+    : ["userFlow", "screens", "prdLinks", "openDesignPrompt"];
+  const prototypeProperties = {
+    userFlow: nullableString,
+    screens: {
+      type: ["array", "null"],
+      items: screen,
+    },
+    prdLinks: {
+      type: ["array", "null"],
+      items: prdLink,
+    },
+    openDesignPrompt: nullableString,
+    ...(includePrototype
+      ? {
+          generatedArtifact: {
+            type: ["object", "null"],
+            ...generatedArtifactShape,
+          },
+        }
+      : {}),
   };
 
   return {
@@ -718,19 +843,8 @@ export function buildAgentCliOutputJsonSchema() {
           prototype: {
             type: ["object", "null"],
             additionalProperties: false,
-            required: ["userFlow", "screens", "prdLinks", "openDesignPrompt"],
-            properties: {
-              userFlow: nullableString,
-              screens: {
-                type: ["array", "null"],
-                items: screen,
-              },
-              prdLinks: {
-                type: ["array", "null"],
-                items: prdLink,
-              },
-              openDesignPrompt: nullableString,
-            },
+            required: prototypeRequired,
+            properties: prototypeProperties,
           },
           research: {
             type: ["object", "null"],

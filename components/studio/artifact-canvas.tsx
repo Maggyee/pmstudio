@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   Bot,
@@ -67,6 +67,7 @@ import {
 import {
   getPresetWorkflowDefinition,
   type WorkflowDefinition,
+  type WorkflowStep,
 } from "@/lib/workflow-harness";
 import { cn } from "@/lib/utils";
 
@@ -340,6 +341,66 @@ const fileIdByTab: Record<(typeof studioTabs)[number], string> = {
   总结: "README.md",
 };
 
+const visibleArtifactIdsByWorkflow: Partial<Record<WorkflowId, string[]>> = {
+  "competitor-analysis": ["competitors", "executive-summary"],
+  "generate-prd": ["prd", "executive-summary"],
+  "idea-to-product-pack": [
+    "product-pack",
+    "prd",
+    "prototype",
+    "research",
+    "competitors",
+    "personas",
+    "roadmap",
+    "executive-summary",
+  ],
+  "market-research": ["research", "executive-summary"],
+  "prd-to-prototype-linker": ["prd", "prototype"],
+  "project-summarizer": ["executive-summary", "product-pack"],
+  "roadmap-generator": ["prd", "roadmap", "executive-summary"],
+  "user-personas": ["personas", "executive-summary"],
+};
+
+const artifactIdsByWorkflowOutput: Record<string, string[]> = {
+  assumptions: ["prd"],
+  "competitor-analysis": ["competitors"],
+  "core-features": ["prd"],
+  "executive-summary": ["executive-summary"],
+  "market-research": ["research"],
+  "pain-points": ["product-pack"],
+  personas: ["personas"],
+  positioning: ["product-pack"],
+  "product-pack": ["product-pack"],
+  prd: ["prd"],
+  "prototype-brief": ["prototype"],
+  "prototype-preview": ["prototype"],
+  "prototype-structure": ["prototype"],
+  research: ["research"],
+  roadmap: ["roadmap"],
+  "target-users": ["personas"],
+  "user-flow": ["prototype"],
+  "user-stories": ["prd"],
+  "value-proposition": ["product-pack"],
+};
+
+function getVisibleArtifactIdsForWorkflow(workflowDefinition?: WorkflowDefinition) {
+  const workflowId = workflowDefinition?.workflowId as WorkflowId | undefined;
+  const presetArtifactIds = workflowId ? visibleArtifactIdsByWorkflow[workflowId] : undefined;
+
+  if (presetArtifactIds?.length) return new Set(presetArtifactIds);
+
+  const outputArtifactIds = workflowDefinition?.outputArtifactIds ?? [];
+  const artifactIds = outputArtifactIds.flatMap((artifactId) => artifactIdsByWorkflowOutput[artifactId] ?? []);
+
+  if (artifactIds.length) return new Set(artifactIds);
+
+  return new Set(visibleArtifactIdsByWorkflow["idea-to-product-pack"]);
+}
+
+function workflowIncludesPrototype(workflowDefinition?: WorkflowDefinition) {
+  return getVisibleArtifactIdsForWorkflow(workflowDefinition).has("prototype");
+}
+
 function getFileIdForArtifact(artifact?: string, pack?: ProductPack) {
   if (!pack) return undefined;
 
@@ -363,6 +424,7 @@ function getPrototypeStudioFileKind(path: string, mimeType: string): StudioFileK
 function getStudioFiles(
   pack: ProductPack,
   prototypeOptions: PrototypeGenerationOptions = {},
+  workflowDefinition?: WorkflowDefinition,
 ): StudioFile[] {
   const prototypeBundle = buildPrototypeArtifactBundle(pack, prototypeOptions);
   const prototypeFiles: StudioFile[] = prototypeBundle.files.map((file) => ({
@@ -377,7 +439,7 @@ function getStudioFiles(
     updatedAt: pack.generatedAt,
   }));
 
-  return [
+  const files: StudioFile[] = [
     {
       artifactId: "product-pack",
       description: pack.project.oneLiner,
@@ -457,6 +519,33 @@ function getStudioFiles(
       updatedAt: pack.generatedAt,
     },
   ];
+  const visibleArtifactIds = getVisibleArtifactIdsForWorkflow(workflowDefinition);
+
+  return files.filter((file) => visibleArtifactIds.has(file.artifactId));
+}
+
+function getPreferredFileIdForWorkflow(
+  pack: ProductPack,
+  prototypeOptions: PrototypeGenerationOptions = {},
+  workflowDefinition?: WorkflowDefinition,
+) {
+  const workflowId = workflowDefinition?.workflowId;
+
+  if (workflowId === "generate-prd") return "artifacts/PRD.md";
+  if (workflowId === "market-research") return "research/market.md";
+  if (workflowId === "competitor-analysis") return "research/competitors.md";
+  if (workflowId === "user-personas") return "research/personas.md";
+  if (workflowId === "roadmap-generator") return "planning/roadmap.md";
+  if (workflowId === "project-summarizer") return "planning/executive-summary.md";
+  if (workflowId === "prd-to-prototype-linker") return getFileIdForArtifact("prototype", pack);
+
+  return getStudioFiles(pack, prototypeOptions, workflowDefinition)[0]?.id;
+}
+
+function getVisibleArtifactIndex(pack: ProductPack, workflowDefinition?: WorkflowDefinition) {
+  const visibleArtifactIds = getVisibleArtifactIdsForWorkflow(workflowDefinition);
+
+  return pack.artifactIndex.filter((artifact) => visibleArtifactIds.has(artifact.id));
 }
 
 function formatFileTime(value: string) {
@@ -1113,6 +1202,95 @@ function FilePreviewSurface({
   );
 }
 
+function getWorkflowStepAgentLabel(step: WorkflowStep) {
+  const labels: Record<WorkflowStep["kind"], string> = {
+    "agent-run": "Agent 执行",
+    "competitor-analysis": "竞品分析",
+    export: "导出打包",
+    intake: "需求理解",
+    "market-research": "市场调研",
+    personas: "用户画像",
+    prd: "PRD 文档",
+    prototype: "原型生成",
+    roadmap: "路线图",
+    summary: "方案摘要",
+  };
+
+  return labels[step.kind];
+}
+
+function buildWorkflowProgressEvents(
+  workflowDefinition?: WorkflowDefinition,
+  activeStepIndex = 0,
+): HarnessEvent[] {
+  const enabledSteps = workflowDefinition?.steps.filter((step) => step.enabled) ?? [];
+
+  if (!enabledSteps.length) {
+    return [
+      {
+        type: "running",
+        agent: "Agent",
+        message: "正在准备运行当前工作流。",
+      },
+    ];
+  }
+
+  return enabledSteps.map((step, index) => {
+    const artifactId = step.outputArtifactIds[0];
+    const complete = index < activeStepIndex;
+    const running = index === activeStepIndex;
+
+    return {
+      type: complete ? "artifact" : running ? "running" : "queued",
+      agent: getWorkflowStepAgentLabel(step),
+      artifactId,
+      message: running
+        ? `${step.title}: ${step.description}`
+        : complete
+          ? `${step.title} 已完成。`
+          : `${step.title} 等待执行。`,
+    };
+  });
+}
+
+function WorkflowProgressList({ events }: { events?: HarnessEvent[] }) {
+  if (!events?.length) return null;
+
+  return (
+    <div className="mt-3 space-y-2">
+      {events.map((event, index) => {
+        const done = event.type === "artifact" || event.type === "done";
+        const running = event.type === "running";
+
+        return (
+          <div className="flex items-start gap-2 rounded-lg bg-neutral-50 px-2.5 py-2" key={`${event.agent}-${index}`}>
+            <span
+              className={cn(
+                "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                done && "border-emerald-500 bg-emerald-500 text-white",
+                running && "border-blue-500 bg-blue-50 text-blue-700",
+                !done && !running && "border-neutral-200 bg-white text-neutral-400",
+              )}
+            >
+              {done ? (
+                <CheckCircle2 className="h-3 w-3" />
+              ) : running ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Clock3 className="h-3 w-3" />
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-semibold text-neutral-700">{event.agent}</span>
+              <span className="mt-0.5 block text-[11px] leading-4 text-neutral-500">{event.message}</span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AgentConversationPane({
   activeTab,
   agentEvents,
@@ -1171,6 +1349,9 @@ function AgentConversationPane({
   const workflowDescription =
     workflowDefinition?.description ?? "输出会落到中间的文档文件和原型文件。";
   const enabledSteps = workflowDefinition?.steps.filter((step) => step.enabled) ?? [];
+  const visibleArtifactIds = Array.from(getVisibleArtifactIdsForWorkflow(workflowDefinition));
+  const visibleArtifactIndex = currentPack ? getVisibleArtifactIndex(currentPack, workflowDefinition) : [];
+  const showPrototypeControls = workflowIncludesPrototype(workflowDefinition);
 
   return (
     <aside className="flex min-h-0 min-w-0 flex-col border-r border-black/10 bg-white">
@@ -1214,64 +1395,71 @@ function AgentConversationPane({
           ) : null}
         </div>
 
-        <section className="mb-3 rounded-xl border border-black/10 bg-white p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-neutral-500">原型生成流程</p>
-            <span className="rounded-md bg-[#e8f6ff] px-2 py-0.5 text-[11px] text-[#0a70a8]">
-              {"Brief -> Template -> Files"}
-            </span>
-          </div>
-          <div className="grid gap-2">
-            <label className="grid gap-1">
-              <span className="text-[11px] font-medium text-neutral-500">原型类型</span>
-              <select
-                className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
-                onChange={(event) => onPrototypeKindChange(event.target.value as PrototypeKind | "auto")}
-                value={prototypeKind}
-              >
-                {prototypeKindOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1">
-              <span className="text-[11px] font-medium text-neutral-500">设计模板</span>
-              <select
-                className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
-                onChange={(event) => onPrototypeTemplateChange(event.target.value as PrototypeTemplateId)}
-                value={prototypeTemplateId}
-              >
-                {prototypeTemplateOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <p className="mt-2 text-[11px] leading-5 text-neutral-500">
-            生成会产出 index launcher、独立 screen HTML、data、manifest 和 handoff，而不是复用同一张业务工作台页面。
-          </p>
-        </section>
+        {showPrototypeControls ? (
+          <section className="mb-3 rounded-xl border border-black/10 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-neutral-500">原型生成流程</p>
+              <span className="rounded-md bg-[#e8f6ff] px-2 py-0.5 text-[11px] text-[#0a70a8]">
+                {"Brief -> Agent HTML -> Files"}
+              </span>
+            </div>
+            <div className="grid gap-2">
+              <label className="grid gap-1">
+                <span className="text-[11px] font-medium text-neutral-500">原型类型</span>
+                <select
+                  className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+                  onChange={(event) => onPrototypeKindChange(event.target.value as PrototypeKind | "auto")}
+                  value={prototypeKind}
+                >
+                  {prototypeKindOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1">
+                <span className="text-[11px] font-medium text-neutral-500">设计模板</span>
+                <select
+                  className="h-8 rounded-lg border border-black/10 bg-neutral-50 px-2 text-xs font-medium text-neutral-700 outline-none transition focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+                  onChange={(event) => onPrototypeTemplateChange(event.target.value as PrototypeTemplateId)}
+                  value={prototypeTemplateId}
+                >
+                  {prototypeTemplateOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="mt-2 text-[11px] leading-5 text-neutral-500">
+              Codex / Claude 可直接返回真实 HTML 文件；没有返回时才使用 fallback renderer。
+            </p>
+          </section>
+        ) : null}
 
         {currentPack ? (
           <AgentPanel
             events={agentEvents}
+            isGenerating={isGenerating}
             productPack={currentPack}
             runHistory={runHistory}
+            visibleArtifactIds={visibleArtifactIds}
             variant="floating"
           />
         ) : (
           <section className="rounded-xl border border-dashed border-black/10 bg-white p-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-neutral-500">
               <Sparkles className="h-3.5 w-3.5 text-[#12a7ff]" />
-              等待 agent 生成
+              {isGenerating ? "Agent 正在生成" : "等待 agent 生成"}
             </div>
             <p className="mt-2 text-xs leading-5 text-neutral-500">
-              当前没有 Product Pack、文件、原型或 mock artifact。输入产品想法后，agent 会生成真实可打开的文件。
+              {isGenerating
+                ? "当前工作流已经开始执行，完成后会只显示本轮 workflow 对应的 artifact。"
+                : "当前没有 Product Pack、文件、原型或 mock artifact。输入产品想法后，agent 会生成真实可打开的文件。"}
             </p>
+            <WorkflowProgressList events={agentEvents} />
           </section>
         )}
 
@@ -1279,10 +1467,10 @@ function AgentConversationPane({
           <section className="mt-3 rounded-xl border border-black/10 bg-white p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-xs font-semibold text-neutral-500">本轮产出文件</p>
-            <span className="text-[11px] text-neutral-400">{currentPack.artifactIndex.length} 个</span>
+            <span className="text-[11px] text-neutral-400">{visibleArtifactIndex.length} 个</span>
           </div>
           <div className="space-y-1.5">
-            {currentPack.artifactIndex.slice(0, 5).map((artifact) => (
+            {visibleArtifactIndex.slice(0, 5).map((artifact) => (
               <div className="flex items-center gap-2 rounded-lg bg-neutral-50 px-2 py-1.5" key={artifact.id}>
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                 <span className="min-w-0 flex-1 truncate text-xs text-neutral-700">{artifact.title}</span>
@@ -1423,6 +1611,7 @@ function FileInspector({
   onToggleCollapsed,
   productPack,
   runHistory,
+  workflowDefinition,
 }: {
   activeMode: "生成" | "修改" | "源码" | "预览";
   agentEvents?: HarnessEvent[];
@@ -1431,9 +1620,11 @@ function FileInspector({
   onToggleCollapsed: () => void;
   productPack: ProductPack;
   runHistory: AgentRunHistoryItem[];
+  workflowDefinition?: WorkflowDefinition;
 }) {
   const artifact = productPack.artifactIndex.find((item) => item.id === file.artifactId);
   const document = buildArtifactDocument(file.artifactId, productPack);
+  const visibleArtifactIds = Array.from(getVisibleArtifactIdsForWorkflow(workflowDefinition));
 
   if (collapsed) {
     return (
@@ -1530,6 +1721,7 @@ function FileInspector({
             events={agentEvents}
             productPack={productPack}
             runHistory={runHistory}
+            visibleArtifactIds={visibleArtifactIds}
             variant="floating"
           />
         </div>
@@ -1801,7 +1993,13 @@ export function ArtifactCanvas({
   workflowDefinition?: WorkflowDefinition;
 }) {
   const initialPack = productPack;
-  const requestedFileId = getFileIdForArtifact(activeArtifact, initialPack);
+  const initialWorkflowDefinition =
+    workflowDefinition ?? getPresetWorkflowDefinition(getWorkflowIdForTab(getTabFromArtifactParam(activeArtifact)));
+  const requestedFileId = initialPack
+    ? activeArtifact
+      ? getFileIdForArtifact(activeArtifact, initialPack)
+      : getPreferredFileIdForWorkflow(initialPack, {}, initialWorkflowDefinition)
+    : undefined;
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "源码" | "预览">("预览");
   const [currentEvents, setCurrentEvents] = useState(agentEvents);
   const [currentPack, setCurrentPack] = useState<ProductPack | undefined>(initialPack);
@@ -1827,28 +2025,29 @@ export function ArtifactCanvas({
   const runInputRef = useRef<HTMLTextAreaElement>(null);
   const activeTabRef = useRef(getTabFromArtifactParam(activeArtifact));
   const currentPackRef = useRef<ProductPack | undefined>(currentPack);
-  const prototypeOptions: PrototypeGenerationOptions = {
+  const fallbackActiveTab = getTabFromArtifactParam(activeArtifact);
+  const activeWorkflowDefinition =
+    workflowDefinition ?? getPresetWorkflowDefinition(getWorkflowIdForTab(fallbackActiveTab));
+  const activeWorkflowId = activeWorkflowDefinition?.workflowId ?? getWorkflowIdForTab(fallbackActiveTab);
+  const prototypeOptions: PrototypeGenerationOptions = useMemo(() => ({
     designSystem: "PM Studio DESIGN.md",
     kind: prototypeKind,
     templateId: prototypeTemplateId,
-  };
-  const studioFiles = currentPack ? getStudioFiles(currentPack, prototypeOptions) : [];
+  }), [prototypeKind, prototypeTemplateId]);
+  const studioFiles = currentPack ? getStudioFiles(currentPack, prototypeOptions, activeWorkflowDefinition) : [];
   const activeFile = activeFileId
     ? studioFiles.find((file) => file.id === activeFileId) ?? studioFiles[0]
     : studioFiles[0];
   const openFiles = openFileIds
     .map((fileId) => studioFiles.find((file) => file.id === fileId))
     .filter((file): file is StudioFile => Boolean(file));
-  const activeTab = activeFile?.tab ?? getTabFromArtifactParam(activeArtifact);
+  const activeTab = activeFile?.tab ?? fallbackActiveTab;
   const activeSourceDraftKey = currentPack && activeFile ? `${currentPack.id}:${activeFile.id}` : "";
   const generatedActiveSourceValue =
     currentPack && activeFile ? renderStudioFileSource(activeFile, currentPack, prototypeOptions) : "";
   const activeSourceValue =
     (activeSourceDraftKey ? fileSourceDrafts[activeSourceDraftKey] : undefined) ??
     generatedActiveSourceValue;
-  const activeWorkflowDefinition =
-    workflowDefinition ?? getPresetWorkflowDefinition(getWorkflowIdForTab(activeTab));
-  const activeWorkflowId = activeWorkflowDefinition?.workflowId ?? getWorkflowIdForTab(activeTab);
   const projectTitle = currentPack?.project.title ?? "未生成项目";
   const artifactActions = currentPack ? getArtifactActions(activeTab, currentPack) : [];
   const availableModes =
@@ -1969,7 +2168,9 @@ export function ArtifactCanvas({
       if (storedPack) {
         setCurrentPack(storedPack);
         setPrompt(storedPack.sourceIdea);
-        const nextFileId = getFileIdForArtifact(activeArtifact, storedPack);
+        const nextFileId = activeArtifact
+          ? getFileIdForArtifact(activeArtifact, storedPack)
+          : getPreferredFileIdForWorkflow(storedPack, prototypeOptions, activeWorkflowDefinition);
 
         if (nextFileId) {
           setActiveFileId(nextFileId);
@@ -1989,7 +2190,7 @@ export function ArtifactCanvas({
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeArtifact, productPack]);
+  }, [activeArtifact, activeWorkflowDefinition, productPack, prototypeOptions]);
 
   useEffect(() => {
     if (!productPack) return;
@@ -1998,7 +2199,9 @@ export function ArtifactCanvas({
       setCurrentPack(productPack);
       setPrompt(productPack.sourceIdea);
       setCurrentEvents(agentEvents);
-      const nextFileId = getFileIdForArtifact(activeArtifact, productPack);
+      const nextFileId = activeArtifact
+        ? getFileIdForArtifact(activeArtifact, productPack)
+        : getPreferredFileIdForWorkflow(productPack, prototypeOptions, activeWorkflowDefinition);
 
       if (nextFileId) {
         setActiveFileId(nextFileId);
@@ -2008,7 +2211,27 @@ export function ArtifactCanvas({
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeArtifact, agentEvents, productPack]);
+  }, [activeArtifact, activeWorkflowDefinition, agentEvents, productPack, prototypeOptions]);
+
+  useEffect(() => {
+    if (!currentPack) return;
+
+    const visibleFiles = getStudioFiles(currentPack, prototypeOptions, activeWorkflowDefinition);
+
+    if (activeFileId && visibleFiles.some((file) => file.id === activeFileId)) return;
+
+    const nextFileId = getPreferredFileIdForWorkflow(currentPack, prototypeOptions, activeWorkflowDefinition);
+
+    if (!nextFileId) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setActiveFileId(nextFileId);
+      setActiveWorkspaceTabId(nextFileId);
+      setOpenFileIds([nextFileId]);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeFileId, activeWorkflowDefinition, currentPack, prototypeOptions]);
 
   useEffect(() => {
     if (!currentPack) return;
@@ -2175,9 +2398,16 @@ export function ArtifactCanvas({
     const input = buildIntakeInput(baseInput);
     setIsGenerating(true);
     setRunError(null);
+    setCurrentEvents(buildWorkflowProgressEvents(activeWorkflowDefinition, 0));
+    let progressStepIndex = 0;
+    const progressStepCount = activeWorkflowDefinition?.steps.filter((step) => step.enabled).length ?? 1;
+    const progressTimerId = window.setInterval(() => {
+      progressStepIndex = Math.min(progressStepIndex + 1, Math.max(progressStepCount - 1, 0));
+      setCurrentEvents(buildWorkflowProgressEvents(activeWorkflowDefinition, progressStepIndex));
+    }, 650);
 
     try {
-      const response = await fetch("/api/generate", {
+      const responsePromise = fetch("/api/generate", {
         body: JSON.stringify({
           input,
           providerId,
@@ -2189,6 +2419,8 @@ export function ArtifactCanvas({
         },
         method: "POST",
       });
+      const minimumProgressDuration = new Promise((resolve) => window.setTimeout(resolve, 900));
+      const [response] = await Promise.all([responsePromise, minimumProgressDuration]);
 
       if (!response.ok) {
         const error = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -2196,9 +2428,9 @@ export function ArtifactCanvas({
       }
 
       const generated = (await response.json()) as GeneratedPack;
-      setCurrentPack(generated.productPack);
       setCurrentEvents(generated.events);
       setLastRunMode(generated.runMode ?? "mock");
+      setCurrentPack(generated.productPack);
       setRunHistory((history) => [
         {
           createdAt: new Date().toISOString(),
@@ -2213,7 +2445,11 @@ export function ArtifactCanvas({
       ].slice(0, 8));
       setPrompt(baseInput);
       setActiveMode("预览");
-      const nextFileId = getFileIdForArtifact("prototype", generated.productPack);
+      const nextFileId = getPreferredFileIdForWorkflow(
+        generated.productPack,
+        prototypeOptions,
+        activeWorkflowDefinition,
+      );
 
       if (nextFileId) {
         setActiveFileId(nextFileId);
@@ -2223,6 +2459,7 @@ export function ArtifactCanvas({
     } catch (error) {
       setRunError(error instanceof Error ? error.message : "生成失败");
     } finally {
+      window.clearInterval(progressTimerId);
       setIsGenerating(false);
     }
   }
@@ -2506,6 +2743,7 @@ export function ArtifactCanvas({
             onToggleCollapsed={() => setContextCollapsed((value) => !value)}
             productPack={currentPack}
             runHistory={runHistory}
+            workflowDefinition={activeWorkflowDefinition}
           />
         ) : null}
       </div>
