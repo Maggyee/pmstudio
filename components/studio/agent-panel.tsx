@@ -67,7 +67,7 @@ function getRunModeLabel(item: AgentRunHistoryItem) {
     "claude-dry-run": "Claude dry-run",
     "codex-cli": "Codex CLI",
     "codex-dry-run": "Codex dry-run",
-    mock: "Mock",
+    mock: "Fallback",
   };
 
   return labels[item.runMode];
@@ -139,7 +139,7 @@ export function AgentPanel({
             </li>
             <li className="flex gap-2">
               <Check className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
-              当前数据来自统一 Product Pack，后续可替换为真实 Codex / Claude Code 运行结果。
+              当前数据来自统一 Product Pack，并保留本次 CLI / fallback 运行记录。
             </li>
           </ul>
         </div>

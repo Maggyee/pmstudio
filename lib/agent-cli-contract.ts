@@ -597,7 +597,7 @@ export function buildAgentCliOutputInstructions({
     ),
     "If the selected workflow includes PRD output, include complete PRD arrays that directly answer the user's product idea.",
     includePrototype
-      ? "This workflow includes prototype output: include complete prototype screens and generatedArtifact.files with real HTML for index.html plus one primary screen at screens/01-primary.html. Keep each HTML body under 7,000 characters. The HTML must look like the requested product, not a generic dashboard unless the brief asks for a dashboard."
+      ? "This workflow includes prototype output: include complete prototype screens and generatedArtifact.files with real HTML. Use stable paths only: index.html and screens/01-<screen-slug>.html, screens/02-<screen-slug>.html, etc. Do not invent random file names. Add data-od-id attributes to important text, buttons, nav items, cards, and sections so PM Studio can visually edit the prototype. Keep each HTML body under 7,000 characters. The HTML must look like the requested product, not a generic dashboard unless the brief asks for a dashboard."
       : "This workflow does not include prototype output: set prototype to null or omit prototype entirely.",
     "Use concrete product-specific UI copy, states, modules, and navigation. Do not keep placeholder screen names such as 工作台首页, 数据录入页, AI 分析页 unless those are truly the requested product.",
     "Keep arrays complete for any field you include.",

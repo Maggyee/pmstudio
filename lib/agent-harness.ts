@@ -169,7 +169,7 @@ export const harnessReferenceSources: HarnessReferenceSource[] = [
 export const agentProviders: AgentProvider[] = [
   {
     id: "mock",
-    displayName: "Mock PM Studio",
+    displayName: "离线 Fallback",
     status: "available",
     command: "in-process",
     capabilities: {

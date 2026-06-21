@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ArrowLeft,
   Bot,
   Check,
   ChevronDown,
@@ -16,20 +17,29 @@ import {
   Sparkles,
 } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 import { ArtifactCanvas } from "@/components/studio/artifact-canvas";
-import { StudioSidebar } from "@/components/studio/sidebar";
 import { WorkflowHarnessDialog } from "@/components/studio/workflow-harness-dialog";
 import { studioDesignSystems } from "@/lib/mock-data";
 import type {
   AgentProvider,
   AgentProviderId,
-  GeneratedPack,
   HarnessEvent,
   HarnessWorkflow,
   WorkflowId,
+  AgentRunHistoryItem,
 } from "@/lib/agent-harness";
 import type { ProductPack } from "@/lib/product-pack";
+import {
+  buildDemoProject,
+  getActiveProjectId,
+  getProject,
+  setActiveProject,
+  type StudioProjectRecord,
+  type StudioProjectStatus,
+  updateProject,
+} from "@/lib/studio-projects";
 import {
   getPresetWorkflowDefinition,
   presetWorkflowDefinitions,
@@ -47,7 +57,7 @@ const fallbackProviders: AgentProvider[] = [
       streaming: true,
     },
     command: "in-process",
-    displayName: "Mock PM Studio",
+    displayName: "离线 Fallback",
     id: "mock",
     status: "available",
   },
@@ -103,16 +113,7 @@ type ProviderPathSettings = {
   updatedAt?: string;
 };
 
-type DemoProject = {
-  id: string;
-  productPack: ProductPack;
-  agentEvents: HarnessEvent[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-const localProjectsStorageKey = "pmstudio:projects:v4";
-const localActiveProjectStorageKey = "pmstudio:active-project-id:v4";
+const emptyHarnessEvents: HarnessEvent[] = [];
 
 const designSystemOptions = [
   {
@@ -136,6 +137,24 @@ const designSystemOptions = [
     swatches: ["#111827", "#F8FAFC", "#2563EB", "#059669"],
   },
 ];
+
+const shellStatusLabels: Record<StudioProjectStatus, string> = {
+  archived: "已归档",
+  awaiting_input: "待确认",
+  empty: "空项目",
+  error: "失败",
+  ready: "已生成",
+  running: "生成中",
+};
+
+const shellStatusStyles: Record<StudioProjectStatus, string> = {
+  archived: "bg-neutral-100 text-neutral-500",
+  awaiting_input: "bg-amber-50 text-amber-700",
+  empty: "bg-neutral-100 text-neutral-600",
+  error: "bg-red-50 text-red-700",
+  ready: "bg-emerald-50 text-emerald-700",
+  running: "bg-blue-50 text-blue-700",
+};
 
 function workflowOptionId(definition: WorkflowDefinition): WorkflowId {
   return definition.workflowId ?? "idea-to-product-pack";
@@ -395,7 +414,7 @@ function getPermissionLabel(provider?: AgentProvider) {
   if (provider.capabilities.permissionMode === "strict") return "严格权限";
   if (provider.capabilities.permissionMode === "permissive") return "宽松权限";
 
-  return "本地模拟";
+  return "仅兜底";
 }
 
 function AgentProviderPicker({
@@ -425,6 +444,12 @@ function AgentProviderPicker({
   const currentProvider =
     providers.find((provider) => provider.id === value) ??
     fallbackProviders.find((provider) => provider.id === value);
+  const hasAvailableRealProvider = providers.some(
+    (provider) => provider.id !== "mock" && provider.status === "available",
+  );
+  const visibleProviders = hasAvailableRealProvider
+    ? providers.filter((provider) => provider.id !== "mock")
+    : providers;
   const statusLabel = getProviderStatusLabel(currentProvider, loading);
   const settingsDirty =
     draftCodexPath.trim() !== (providerSettings.codexPath ?? "") ||
@@ -486,7 +511,7 @@ function AgentProviderPicker({
           <div className="px-2 pb-2 pt-1 text-xs font-semibold text-neutral-500">
             {statusLabel} · {getPermissionLabel(currentProvider)}
           </div>
-          {providers.map((provider) => {
+          {visibleProviders.map((provider) => {
             const active = provider.id === value;
 
             return (
@@ -588,36 +613,21 @@ export function StudioShell({
   activeWorkflow,
   agentEvents,
   productPack,
+  projectId,
 }: {
   activeArtifact?: string;
   activeViewport?: string;
   activeWorkflow?: HarnessWorkflow;
   agentEvents?: HarnessEvent[];
   productPack?: ProductPack;
+  projectId?: string;
 }) {
-  const fallbackProject: DemoProject | undefined = useMemo(
-    () =>
-      productPack
-        ? {
-            agentEvents: agentEvents ?? [],
-            createdAt: productPack.generatedAt,
-            id: productPack.id,
-            productPack,
-            updatedAt: productPack.generatedAt,
-          }
-        : undefined,
-    [agentEvents, productPack],
-  );
-  const [projects, setProjects] = useState<DemoProject[]>(fallbackProject ? [fallbackProject] : []);
-  const [activeProjectId, setActiveProjectId] = useState(fallbackProject?.id);
-  const activeProject =
-    projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? fallbackProject;
-  const [shellProductPack, setShellProductPack] = useState(activeProject?.productPack ?? productPack);
-  const [shellAgentEvents, setShellAgentEvents] = useState<HarnessEvent[]>(
-    activeProject?.agentEvents ?? agentEvents ?? [],
-  );
-  const [creatingProject, setCreatingProject] = useState(false);
-  const projectTitle = shellProductPack?.project.title ?? "未生成项目";
+  const router = useRouter();
+  const [project, setProject] = useState<StudioProjectRecord | null>(null);
+  const [projectLoaded, setProjectLoaded] = useState(false);
+  const shellProductPack = project?.productPack ?? productPack;
+  const shellAgentEvents = project?.agentEvents ?? agentEvents ?? emptyHarnessEvents;
+  const projectTitle = project?.name ?? shellProductPack?.project.title ?? "未生成项目";
   const [selectedDesignSystem, setSelectedDesignSystem] = useState(
     studioDesignSystems[0] ?? designSystemOptions[0].name,
   );
@@ -636,116 +646,90 @@ export function StudioShell({
   const [providersLoading, setProvidersLoading] = useState(true);
   const [providerSettings, setProviderSettings] = useState<ProviderPathSettings>({});
   const [providerSettingsSaving, setProviderSettingsSaving] = useState(false);
+  const shellStatus: StudioProjectStatus = project?.status ?? (shellProductPack ? "ready" : "empty");
+  const currentProviderLabel =
+    providers.find((provider) => provider.id === selectedProvider)?.displayName ?? selectedProvider;
 
   useEffect(() => {
-    try {
-      const storedProjectsValue = window.localStorage.getItem(localProjectsStorageKey);
-      const storedActiveProjectId = window.localStorage.getItem(localActiveProjectStorageKey);
+    const timeoutId = window.setTimeout(() => {
+      const resolvedProjectId = projectId ?? getActiveProjectId();
+      const nextProject =
+        resolvedProjectId === "demo"
+          ? buildDemoProject()
+          : resolvedProjectId
+            ? getProject(resolvedProjectId)
+            : null;
 
-      if (!storedProjectsValue) return;
+      if (nextProject) {
+        setProject(nextProject);
+        setActiveProject(nextProject.id);
+        setSelectedDesignSystem(nextProject.designSystem);
+        setSelectedProvider(nextProject.providerId);
+        setProviderManuallySelected(true);
+        setSelectedWorkflowId(nextProject.workflowId);
 
-      const parsedProjects = JSON.parse(storedProjectsValue) as DemoProject[];
+        const nextDefinition = getPresetWorkflowDefinition(nextProject.workflowId);
 
-      if (!Array.isArray(parsedProjects) || parsedProjects.length === 0) return;
+        if (nextDefinition) {
+          setSelectedWorkflowDefinition(nextDefinition);
+        }
+      } else {
+        setProject(null);
+      }
+      setProjectLoaded(true);
+    }, 0);
 
-      window.setTimeout(() => {
-        setProjects(parsedProjects);
-        setActiveProjectId(
-          storedActiveProjectId && parsedProjects.some((project) => project.id === storedActiveProjectId)
-            ? storedActiveProjectId
-            : parsedProjects[0].id,
-        );
-      }, 0);
-    } catch {
-      window.localStorage.removeItem(localProjectsStorageKey);
-      window.localStorage.removeItem(localActiveProjectStorageKey);
-    }
+    return () => window.clearTimeout(timeoutId);
+  }, [projectId]);
+
+  const patchProject = useCallback((patch: Partial<Omit<StudioProjectRecord, "id" | "createdAt">>) => {
+    setProject((currentProject) => {
+      if (!currentProject) return currentProject;
+
+      const updated = updateProject(currentProject.id, patch);
+
+      return updated ?? currentProject;
+    });
   }, []);
 
-  useEffect(() => {
-    const nextProject =
-      projects.find((project) => project.id === activeProjectId) ?? projects[0] ?? fallbackProject;
-
-    if (!nextProject) return;
-
-    window.setTimeout(() => {
-      setShellProductPack(nextProject.productPack);
-      setShellAgentEvents(nextProject.agentEvents);
-    }, 0);
-  }, [activeProjectId, fallbackProject, projects]);
-
-  useEffect(() => {
-    if (!projects.length) return;
-
-    window.localStorage.setItem(localProjectsStorageKey, JSON.stringify(projects));
-
-    if (activeProjectId) {
-      window.localStorage.setItem(localActiveProjectStorageKey, activeProjectId);
-    }
-  }, [activeProjectId, projects]);
-
-  const upsertProject = useCallback(({
-    agentEvents: nextEvents,
-    productPack: nextPack,
-  }: {
-    agentEvents?: HarnessEvent[];
-    productPack: ProductPack;
-  }) => {
-    const now = new Date().toISOString();
-
-    setShellProductPack(nextPack);
-
-    if (nextEvents) {
-      setShellAgentEvents(nextEvents);
-    }
-
-    setProjects((currentProjects) => {
-      const existing = currentProjects.find((project) => project.id === nextPack.id);
-      const nextProject: DemoProject = {
-        agentEvents: nextEvents ?? existing?.agentEvents ?? shellAgentEvents,
-        createdAt: existing?.createdAt ?? nextPack.generatedAt ?? now,
-        id: nextPack.id,
-        productPack: nextPack,
-        updatedAt: now,
-      };
-      const withoutCurrent = currentProjects.filter((project) => project.id !== nextPack.id);
-
-      return [nextProject, ...withoutCurrent].slice(0, 12);
-    });
-    setActiveProjectId(nextPack.id);
-  }, [shellAgentEvents]);
-
   const handleProductPackChange = useCallback((nextProductPack: ProductPack) => {
-    upsertProject({
+    patchProject({
+      description: nextProductPack.project.oneLiner,
       productPack: nextProductPack,
+      status: "ready",
     });
-  }, [upsertProject]);
+  }, [patchProject]);
 
   const handleAgentEventsChange = useCallback((nextEvents: HarnessEvent[]) => {
-    setShellAgentEvents(nextEvents);
+    patchProject({
+      agentEvents: nextEvents,
+    });
+  }, [patchProject]);
 
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === activeProjectId
-          ? {
-              ...project,
-              agentEvents: nextEvents,
-              updatedAt: new Date().toISOString(),
-            }
-          : project,
-      ),
-    );
-  }, [activeProjectId]);
+  const handleRunHistoryChange = useCallback((nextRunHistory: AgentRunHistoryItem[]) => {
+    patchProject({
+      runHistory: nextRunHistory,
+    });
+  }, [patchProject]);
+
+  const handleProjectStatusChange = useCallback((status: StudioProjectStatus) => {
+    patchProject({
+      status,
+    });
+  }, [patchProject]);
 
   const handleWorkflowChange = useCallback((workflowId: WorkflowId) => {
     setSelectedWorkflowId(workflowId);
+    patchProject({
+      workflowId,
+    });
 
     const nextDefinition = getPresetWorkflowDefinition(workflowId);
 
     if (nextDefinition) {
       setSelectedWorkflowDefinition(nextDefinition);
     }
-  }, []);
+  }, [patchProject]);
 
   async function refreshProviders() {
     setProvidersLoading(true);
@@ -824,10 +808,13 @@ export function StudioShell({
 
     const timeoutId = window.setTimeout(() => {
       setSelectedProvider(availableRealProvider.id);
+      patchProject({
+        providerId: availableRealProvider.id,
+      });
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [providerManuallySelected, providers, selectedProvider]);
+  }, [patchProject, providerManuallySelected, providers, selectedProvider]);
 
   async function handleSaveProviderSettings(settings: ProviderPathSettings) {
     setProviderSettingsSaving(true);
@@ -874,67 +861,95 @@ export function StudioShell({
     window.dispatchEvent(new CustomEvent("pmstudio:export-current-pack"));
   }
 
-  async function handleCreateProject(idea: string) {
-    setCreatingProject(true);
+  if (projectLoaded && !project) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#f5f5f1] px-5 text-center text-[#111111]">
+        <div className="max-w-md rounded-lg border border-black/10 bg-white/80 p-8 shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-neutral-950">
+            <Image
+              alt="PM Studio"
+              className="h-8 w-8 object-contain brightness-0 invert"
+              height={32}
+              src="/pm-studio-logo.png"
+              width={32}
+            />
+          </div>
+          <h1 className="mt-5 text-lg font-semibold">项目不存在</h1>
+          <p className="mt-2 text-sm leading-6 text-neutral-500">
+            这个项目可能已被删除，或者当前浏览器没有对应的本地项目记录。
+          </p>
+          <button
+            className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-neutral-950 px-4 text-sm font-medium text-white"
+            onClick={() => router.push("/app")}
+            type="button"
+          >
+            返回项目库
+          </button>
+        </div>
+      </main>
+    );
+  }
 
-    try {
-      const response = await fetch("/api/generate", {
-        body: JSON.stringify({
-          input: idea,
-          providerId: selectedProvider,
-          workflowId: selectedWorkflowId,
-          workflowDefinition: selectedWorkflowDefinition,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Project generation failed");
-      }
-
-      const generated = (await response.json()) as GeneratedPack;
-
-      upsertProject({
-        agentEvents: generated.events,
-        productPack: generated.productPack,
-      });
-    } finally {
-      setCreatingProject(false);
-    }
+  if (!projectLoaded) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f5f1] text-sm text-neutral-500">
+        正在打开项目...
+      </main>
+    );
   }
 
   return (
-    <main className="flex h-screen min-h-0 flex-col overflow-hidden text-[#191919]">
-      <header className="relative z-40 border-b border-black/8 bg-white/60 backdrop-blur-2xl">
-        <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-5">
-          {/* Left: Logo + Title */}
+    <main className="flex h-screen min-h-0 flex-col overflow-hidden bg-[#f5f5f1] text-[#191919]">
+      <header className="relative z-40 border-b border-black/10 bg-[#fbfaf7]/90 backdrop-blur-2xl">
+        <div className="flex h-[52px] min-h-[52px] items-center justify-between gap-3 px-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-neutral-900 to-neutral-700 shadow-lg shadow-neutral-900/20">
+            <button
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-neutral-500 transition hover:bg-white hover:text-neutral-950"
+              onClick={() => router.push("/app")}
+              title="返回项目库"
+              type="button"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-950 shadow-lg shadow-neutral-900/15">
               <Image
                 alt="PM Studio"
-                className="h-6 w-6 object-contain brightness-0 invert"
-                height={24}
+                className="h-5 w-5 object-contain brightness-0 invert"
+                height={20}
                 src="/pm-studio-logo.png"
-                width={24}
+                width={20}
               />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-tight">PM Studio</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-sm font-semibold leading-tight">{projectTitle}</p>
+                <span
+                  className={cn(
+                    "hidden h-5 shrink-0 items-center rounded-md px-1.5 text-[11px] font-medium sm:inline-flex",
+                    shellStatusStyles[shellStatus],
+                  )}
+                >
+                  {shellStatusLabels[shellStatus]}
+                </span>
+              </div>
               <div className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-400">
-                <span>工作台</span>
+                <span>Project</span>
                 <span className="text-neutral-300">/</span>
-                <span className="truncate text-neutral-500">{projectTitle}</span>
+                <span className="truncate text-neutral-500">
+                  {selectedWorkflowDefinition.name} · {currentProviderLabel}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Center: Pickers */}
           <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 px-4 xl:flex">
             <DesignSystemPicker
-              onChange={setSelectedDesignSystem}
+              onChange={(nextDesignSystem) => {
+                setSelectedDesignSystem(nextDesignSystem);
+                patchProject({
+                  designSystem: nextDesignSystem,
+                });
+              }}
               value={selectedDesignSystem}
             />
             <WorkflowPicker
@@ -942,7 +957,7 @@ export function StudioShell({
               value={selectedWorkflowId}
             />
             <button
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-black/8 bg-white/70 px-3 text-sm font-medium text-neutral-700 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-neutral-950 hover:shadow-md"
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-black/8 bg-white/70 px-3 text-sm font-medium text-neutral-700 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white hover:text-neutral-950 hover:shadow-md"
               onClick={() => setWorkflowHarnessOpen(true)}
               type="button"
             >
@@ -957,6 +972,9 @@ export function StudioShell({
               onChange={(providerId) => {
                 setProviderManuallySelected(true);
                 setSelectedProvider(providerId);
+                patchProject({
+                  providerId,
+                });
               }}
               onRefresh={refreshProviders}
               onSaveSettings={handleSaveProviderSettings}
@@ -969,7 +987,7 @@ export function StudioShell({
 
           <div className="flex items-center gap-2">
             <button
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+              className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-black/8 bg-white/70 px-2.5 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
               onClick={handleShareWorkspace}
               type="button"
             >
@@ -977,7 +995,7 @@ export function StudioShell({
               <span className="hidden sm:inline">分享</span>
             </button>
             <button
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+              className="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-black/8 bg-white/70 px-2.5 text-sm font-medium shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
               onClick={handleExportCurrentPack}
               type="button"
             >
@@ -994,6 +1012,9 @@ export function StudioShell({
           const workflowId = definition.workflowId ?? selectedWorkflowId;
           setSelectedWorkflowDefinition(definition);
           setSelectedWorkflowId(workflowId);
+          patchProject({
+            workflowId,
+          });
         }}
         onClose={() => setWorkflowHarnessOpen(false)}
         open={workflowHarnessOpen}
@@ -1002,25 +1023,6 @@ export function StudioShell({
       />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden">
-        <aside className="hidden border-r border-[#eeeeee] bg-white/72">
-          <div className="sticky top-0 h-screen overflow-y-auto">
-            <StudioSidebar
-              activeProjectId={activeProjectId}
-              activeWorkflow={activeWorkflow}
-              creatingProject={creatingProject}
-              onCreateProject={handleCreateProject}
-              onSelectProject={setActiveProjectId}
-              productPack={shellProductPack}
-              projects={projects.map((project) => ({
-                id: project.id,
-                sourceIdea: project.productPack.sourceIdea,
-                title: project.productPack.project.title,
-                updatedAt: project.updatedAt,
-              }))}
-            />
-          </div>
-        </aside>
-
         <section className="min-w-0">
           <div className="hidden border-b border-[#eeeeee] bg-white/70 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1033,8 +1035,11 @@ export function StudioShell({
             activeViewport={activeViewport}
             agentEvents={shellAgentEvents}
             onAgentEventsChange={handleAgentEventsChange}
+            onProjectStatusChange={handleProjectStatusChange}
             onProductPackChange={handleProductPackChange}
+            onRunHistoryChange={handleRunHistoryChange}
             productPack={shellProductPack}
+            project={project ?? undefined}
             providerId={selectedProvider}
             workflowDefinition={selectedWorkflowDefinition}
           />

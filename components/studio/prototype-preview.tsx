@@ -135,10 +135,18 @@ function buildPreviewEditBridgeScript() {
           return event.target.parentElement || null;
         }
 
+        var runtimeId = 0;
+        var editableSelector = '[data-od-id], button, a, input, textarea, select, label, h1, h2, h3, h4, p, li, span, strong, small, section, article, nav, header, footer, main, aside, div';
+
         window.addEventListener('click', function(event) {
           const clicked = clickedElement(event);
-          const target = clicked ? clicked.closest('[data-od-id]') : null;
+          const target = clicked ? clicked.closest(editableSelector) : null;
           if (!target) return;
+
+          if (!target.getAttribute('data-od-id')) {
+            runtimeId += 1;
+            target.setAttribute('data-od-id', 'runtime-' + target.tagName.toLowerCase() + '-' + runtimeId);
+          }
 
           event.preventDefault();
           event.stopPropagation();
@@ -1118,10 +1126,14 @@ export function StudioPrototypePreview({
       </div>
 
       <div className={cn("bg-[#111111] p-4", activeMode !== "源码" && "hidden")}>
-          <pre className="max-h-[calc(100vh-220px)] min-h-[560px] overflow-auto rounded-lg border border-white/10 bg-[#111111] p-4 text-xs leading-5 text-white/82">
-            <code>{sourceCode ?? sandboxHtml}</code>
-          </pre>
-        </div>
+        <textarea
+          className="max-h-[calc(100vh-220px)] min-h-[560px] w-full resize-y overflow-auto rounded-lg border border-white/10 bg-[#111111] p-4 font-mono text-xs leading-5 text-white/82 outline-none selection:bg-[#12a7ff]/35"
+          onChange={(event) => onSourceChange?.(event.target.value)}
+          readOnly={!onSourceChange}
+          spellCheck={false}
+          value={sourceCode ?? sandboxHtml}
+        />
+      </div>
       <div
         className={cn("relative overflow-hidden", activeMode === "源码" && "hidden")}
         ref={stageShellRef}

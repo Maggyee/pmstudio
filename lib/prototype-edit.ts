@@ -24,6 +24,57 @@ function serializeHtmlDocument(doc: Document) {
   return `${doctype}${doc.documentElement.outerHTML}`;
 }
 
+const editablePrototypeTags = new Set([
+  "a",
+  "article",
+  "aside",
+  "button",
+  "div",
+  "footer",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "header",
+  "label",
+  "li",
+  "main",
+  "nav",
+  "p",
+  "section",
+  "small",
+  "span",
+  "strong",
+]);
+
+function sanitizeIdPart(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "el";
+}
+
+export function ensurePrototypeEditIds(source: string) {
+  if (!source.trim() || source.includes("__PM_STUDIO_SOURCE_EDIT_BRIDGE__")) return source;
+
+  let index = 0;
+
+  return source.replace(
+    /<([a-z][a-z0-9-]*)(\s[^<>]*?)?>/gi,
+    (match: string, tagName: string, rawAttributes = "") => {
+      const tag = tagName.toLowerCase();
+
+      if (!editablePrototypeTags.has(tag)) return match;
+      if (/\sdata-od-id\s*=/.test(match)) return match;
+
+      index += 1;
+
+      const selfClosing = /\/\s*>$/.test(match);
+      const attributes = rawAttributes.replace(/\/\s*$/, "");
+      const editId = `agent-${sanitizeIdPart(tag)}-${index}`;
+
+      return `<${tag}${attributes} data-od-id="${editId}"${selfClosing ? " /" : ""}>`;
+    },
+  );
+}
+
 export function applyPrototypeEditPatch(source: string, patch: PrototypeEditPatch) {
   if (typeof DOMParser === "undefined") return source;
 
@@ -44,4 +95,3 @@ export function applyPrototypeEditPatch(source: string, patch: PrototypeEditPatc
 
   return serializeHtmlDocument(doc);
 }
-

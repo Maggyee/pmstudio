@@ -36,7 +36,20 @@ export type AgentWorkflowRunRequest = {
 const serverAgentEnabled =
   process.env.PMSTUDIO_ENABLE_LOCAL_AGENT === "1" ||
   process.env.PMSTUDIO_ENABLE_CLOUD_AGENTS === "1";
-const agentCliTimeoutMs = Number(process.env.PMSTUDIO_AGENT_CLI_TIMEOUT_MS ?? 240_000);
+const agentCliTimeoutMs = Number(process.env.PMSTUDIO_AGENT_CLI_TIMEOUT_MS ?? 300_000);
+const codexBypassApprovals = process.env.PMSTUDIO_CODEX_BYPASS_APPROVALS === "1";
+const codexIsolatedConfig = process.env.PMSTUDIO_CODEX_ISOLATED !== "0";
+
+function getAgentRunDir(runId: string) {
+  const configuredRoot = process.env.PMSTUDIO_AGENT_RUNS_DIR?.trim();
+  const root =
+    configuredRoot ||
+    (process.platform === "linux"
+      ? "/tmp/pmstudio-agent-runs"
+      : path.join(tmpdir(), "pmstudio-agent-runs"));
+
+  return path.join(/* turbopackIgnore: true */ root, runId);
+}
 
 function getProvider(providerId: AgentProviderId) {
   return agentProviders.find((provider) => provider.id === providerId) ?? agentProviders[0];
@@ -99,7 +112,13 @@ function buildPrompt(pack: GeneratedPack) {
       ? "- For prototype workflows, generate domain-specific prototype screens and include delta.prototype.generatedArtifact.files containing real HTML. This is the actual prototype source PM Studio will preview."
       : "- This workflow does not require prototype output. Do not generate prototype HTML files for this run.",
     includePrototype
-      ? "- Keep prototype generatedArtifact compact: return index.html and one primary screen HTML file only. Keep each HTML body under 7,000 characters. Represent additional screens in delta.prototype.screens rather than writing every screen body."
+      ? "- Use stable prototype paths only: index.html and screens/01-<screen-slug>.html, screens/02-<screen-slug>.html, etc. Do not return random names such as 01-screen-x7a.html."
+      : "",
+    includePrototype
+      ? "- Add data-od-id attributes to important headings, text, buttons, navigation items, cards, and sections so PM Studio can visually edit the generated HTML."
+      : "",
+    includePrototype
+      ? "- Keep each HTML body under 7,000 characters. If needed, generate index.html plus the most important 1-3 screen HTML files and list the rest in delta.prototype.screens."
       : "",
     "- Avoid generic placeholders such as 工作台首页, 数据录入页, AI 分析页 unless the user explicitly asked for that kind of business console.",
     "- Generated prototype HTML must look like the requested product's interface. A reading app should look like a reading app; a CRM should look like a CRM; a game launcher should look like a game launcher.",
@@ -172,21 +191,26 @@ function withRunMetadata({
 
 async function runCodexCli(prompt: string, runId: string) {
   const command = (await getProviderCommand("codex")) ?? "codex";
-  const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
+  const runDir = getAgentRunDir(runId);
   const schemaPath = path.join(runDir, "output-schema.json");
   const lastMessagePath = path.join(runDir, "last-message.json");
 
+  const permissionArgs = codexBypassApprovals
+    ? ["--dangerously-bypass-approvals-and-sandbox"]
+    : [
+        "--sandbox",
+        "workspace-write",
+        "-c",
+        "sandbox_workspace_write.network_access=true",
+      ];
+  const configArgs = codexIsolatedConfig ? ["--ignore-rules", "--ignore-user-config"] : [];
   const args = [
     "exec",
     "--json",
     "--skip-git-repo-check",
-    "--sandbox",
-    "workspace-write",
-      "-c",
-      "sandbox_workspace_write.network_access=true",
-      "--ignore-rules",
-      "--ignore-user-config",
-      "--ephemeral",
+    ...permissionArgs,
+    ...configArgs,
+    "--ephemeral",
     "--output-schema",
     schemaPath,
     "--output-last-message",
@@ -238,7 +262,7 @@ async function runCodexCli(prompt: string, runId: string) {
 
 async function runClaudeCodeCli(prompt: string, runId: string) {
   const command = (await getProviderCommand("claude-code")) ?? "claude";
-  const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
+  const runDir = getAgentRunDir(runId);
 
   const args = [
     "--print",
@@ -286,7 +310,7 @@ async function runClaudeCodeCli(prompt: string, runId: string) {
 }
 
 async function prepareAgentRunDirectory(pack: GeneratedPack, prompt: string, runId: string) {
-  const runDir = path.join(tmpdir(), "pmstudio-agent-runs", runId);
+  const runDir = getAgentRunDir(runId);
   const includePrototype = packShouldGeneratePrototype(pack);
   const prototypeArtifactBundle = includePrototype
     ? {
@@ -396,15 +420,32 @@ function buildCliEvents({
     ];
   }
 
+  const cliEvents = (cliResult?.events ?? []).map((event) =>
+    event.type === "queued" || event.type === "running"
+      ? { ...event, type: "artifact" as const }
+      : event,
+  );
+  const hasDoneEvent = cliEvents.some((event) => event.type === "done");
+
   return [
     {
-      type: "running",
+      type: cliResult?.delta ? "artifact" : "done",
       agent: adapterAgent,
+      artifactId: cliResult?.delta ? "product-pack" : undefined,
       message: cliResult?.delta
         ? "CLI 已返回结构化 Product Pack delta，并已合并到当前 workspace。"
         : "CLI 已返回结构化结果，但没有需要合并的 Product Pack delta。",
     },
-    ...(cliResult?.events ?? []),
+    ...cliEvents,
+    ...(hasDoneEvent
+      ? []
+      : [
+          {
+            type: "done" as const,
+            agent: adapterAgent,
+            message: "本地 CLI 运行完成。",
+          },
+        ]),
   ];
 }
 

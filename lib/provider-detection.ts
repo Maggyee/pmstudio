@@ -6,6 +6,10 @@ const providerCommandTemplates: Partial<Record<AgentProviderId, (command: string
   codex: (command) => `${command} exec --cwd <artifact-dir> <prompt>`,
 };
 
+const serverAgentEnabled =
+  process.env.PMSTUDIO_ENABLE_LOCAL_AGENT === "1" ||
+  process.env.PMSTUDIO_ENABLE_CLOUD_AGENTS === "1";
+
 export async function detectAgentProviders(): Promise<AgentProvider[]> {
   const detected = await Promise.all(
     agentProviders.map(async (provider): Promise<AgentProvider> => {
@@ -14,7 +18,7 @@ export async function detectAgentProviders(): Promise<AgentProvider[]> {
       if (!commandTemplate) return provider;
 
       const detected = await detectProviderCommand(provider.id);
-      const available = detected.available;
+      const available = detected.available && serverAgentEnabled;
 
       return {
         ...provider,

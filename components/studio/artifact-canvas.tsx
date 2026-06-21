@@ -43,7 +43,6 @@ import {
 } from "@/lib/mock-data";
 import {
   buildPrototypeArtifactBundle,
-  getPrototypeScreenPath,
   prototypeKindOptions,
   prototypeTemplateOptions,
   renderPrototypeFile,
@@ -64,6 +63,8 @@ import {
   buildArtifactDocument,
   renderArtifactMarkdown,
 } from "@/lib/pm-documents";
+import { ensurePrototypeEditIds } from "@/lib/prototype-edit";
+import type { StudioProjectRecord, StudioProjectStatus } from "@/lib/studio-projects";
 import {
   getPresetWorkflowDefinition,
   type WorkflowDefinition,
@@ -75,6 +76,7 @@ const localProductPackStorageKey = "pmstudio:last-product-pack:v4";
 const localEventsStorageKey = "pmstudio:last-agent-events:v4";
 const localRunHistoryStorageKey = "pmstudio:run-history:v4";
 const designFilesTabId = "design-files";
+const emptyHarnessEvents: HarnessEvent[] = [];
 
 type ExportFormat = ProductPack["artifactIndex"][number]["exportFormats"][number];
 
@@ -84,6 +86,24 @@ type PrdPrototypeSource = {
   index: number;
   requirement: string;
   source: "core-feature" | "mvp-scope" | "user-story";
+};
+
+type PrototypeQuestionAnswers = {
+  brandContext: string;
+  interactionDepth: string;
+  notes: string;
+  pageScope: string;
+  platform: string;
+  visualStyle: string;
+};
+
+const defaultPrototypeQuestions: PrototypeQuestionAnswers = {
+  brandContext: "由 agent 根据 PRD 决定",
+  interactionDepth: "关键路径可点击",
+  notes: "",
+  pageScope: "首页 + 1 个核心任务页 + 状态页",
+  platform: "Mobile 优先，响应式适配",
+  visualStyle: "现代产品级 UI",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -401,13 +421,30 @@ function workflowIncludesPrototype(workflowDefinition?: WorkflowDefinition) {
   return getVisibleArtifactIdsForWorkflow(workflowDefinition).has("prototype");
 }
 
-function getFileIdForArtifact(artifact?: string, pack?: ProductPack) {
+function getPrototypeEntryFileId(
+  pack: ProductPack,
+  prototypeOptions: PrototypeGenerationOptions = {},
+) {
+  const prototypeBundle = buildPrototypeArtifactBundle(pack, prototypeOptions);
+  const firstScreenFile =
+    prototypeBundle.files.find(
+      (file) => file.path.startsWith("screens/") && file.path.toLowerCase().endsWith(".html"),
+    ) ?? prototypeBundle.files.find((file) => file.path === "index.html");
+
+  return firstScreenFile ? `prototype/${firstScreenFile.path}` : undefined;
+}
+
+function getFileIdForArtifact(
+  artifact?: string,
+  pack?: ProductPack,
+  prototypeOptions: PrototypeGenerationOptions = {},
+) {
   if (!pack) return undefined;
 
   const tab = getTabFromArtifactParam(artifact);
 
   if (tab === "原型") {
-    return `prototype/${getPrototypeScreenPath(pack, 0)}`;
+    return getPrototypeEntryFileId(pack, prototypeOptions);
   }
 
   return fileIdByTab[tab];
@@ -537,7 +574,7 @@ function getPreferredFileIdForWorkflow(
   if (workflowId === "user-personas") return "research/personas.md";
   if (workflowId === "roadmap-generator") return "planning/roadmap.md";
   if (workflowId === "project-summarizer") return "planning/executive-summary.md";
-  if (workflowId === "prd-to-prototype-linker") return getFileIdForArtifact("prototype", pack);
+  if (workflowId === "prd-to-prototype-linker") return getFileIdForArtifact("prototype", pack, prototypeOptions);
 
   return getStudioFiles(pack, prototypeOptions, workflowDefinition)[0]?.id;
 }
@@ -584,7 +621,9 @@ function renderStudioFileSource(
   prototypeOptions: PrototypeGenerationOptions = {},
 ) {
   if (file.artifactId === "prototype") {
-    return renderPrototypeFile(file.id, pack, prototypeOptions, false);
+    const source = renderPrototypeFile(file.id, pack, prototypeOptions, false);
+
+    return file.kind === "html" ? ensurePrototypeEditIds(source) : source;
   }
 
   return renderArtifactMarkdown(file.artifactId, pack);
@@ -597,10 +636,10 @@ function getRunModeLabel(mode?: AgentRunMode) {
     "claude-dry-run": "Claude dry-run",
     "codex-cli": "Codex CLI",
     "codex-dry-run": "Codex dry-run",
-    mock: "Mock provider",
+    mock: "Fallback mock",
   };
 
-  return mode ? labels[mode] : "Mock provider";
+  return mode ? labels[mode] : "Fallback mock";
 }
 
 function getProviderLabel(providerId: AgentProviderId) {
@@ -608,7 +647,7 @@ function getProviderLabel(providerId: AgentProviderId) {
     "api-fallback": "API fallback",
     "claude-code": "Claude Code",
     codex: "Codex",
-    mock: "Mock",
+    mock: "Fallback",
   };
 
   return labels[providerId];
@@ -1222,6 +1261,7 @@ function getWorkflowStepAgentLabel(step: WorkflowStep) {
 function buildWorkflowProgressEvents(
   workflowDefinition?: WorkflowDefinition,
   activeStepIndex = 0,
+  completed = false,
 ): HarnessEvent[] {
   const enabledSteps = workflowDefinition?.steps.filter((step) => step.enabled) ?? [];
 
@@ -1237,11 +1277,12 @@ function buildWorkflowProgressEvents(
 
   return enabledSteps.map((step, index) => {
     const artifactId = step.outputArtifactIds[0];
-    const complete = index < activeStepIndex;
+    const complete = completed || index < activeStepIndex;
     const running = index === activeStepIndex;
+    const isLast = index === enabledSteps.length - 1;
 
     return {
-      type: complete ? "artifact" : running ? "running" : "queued",
+      type: complete ? (isLast ? "done" : "artifact") : running ? "running" : "queued",
       agent: getWorkflowStepAgentLabel(step),
       artifactId,
       message: running
@@ -1251,6 +1292,25 @@ function buildWorkflowProgressEvents(
           : `${step.title} 等待执行。`,
     };
   });
+}
+
+function buildCompletedRunEvents(
+  workflowDefinition: WorkflowDefinition | undefined,
+  adapterEvents: HarnessEvent[] = [],
+) {
+  const completedWorkflowEvents = buildWorkflowProgressEvents(workflowDefinition, Number.MAX_SAFE_INTEGER, true);
+  const visibleAdapterEvents = adapterEvents.filter((event) => event.message.trim());
+
+  if (!visibleAdapterEvents.length) return completedWorkflowEvents;
+
+  return [
+    ...completedWorkflowEvents,
+    ...visibleAdapterEvents.map((event) =>
+      event.type === "queued" || event.type === "running"
+        ? { ...event, type: "artifact" as const }
+        : event,
+    ),
+  ];
 }
 
 function WorkflowProgressList({ events }: { events?: HarnessEvent[] }) {
@@ -1291,6 +1351,128 @@ function WorkflowProgressList({ events }: { events?: HarnessEvent[] }) {
   );
 }
 
+function QuestionChoiceGroup({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  options: string[];
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="mb-1.5 text-[11px] font-semibold text-neutral-500">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((option) => {
+          const active = value === option;
+
+          return (
+            <button
+              className={cn(
+                "h-7 rounded-full border px-2.5 text-[11px] font-medium transition",
+                active
+                  ? "border-neutral-950 bg-neutral-950 text-white"
+                  : "border-black/10 bg-white text-neutral-600 hover:border-neutral-300 hover:text-neutral-950",
+              )}
+              key={option}
+              onClick={() => onChange(option)}
+              type="button"
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PrototypeQuestionForm({
+  answers,
+  onChange,
+}: {
+  answers: PrototypeQuestionAnswers;
+  onChange: (answers: PrototypeQuestionAnswers) => void;
+}) {
+  function update(key: keyof PrototypeQuestionAnswers, value: string) {
+    onChange({
+      ...answers,
+      [key]: value,
+    });
+  }
+
+  return (
+    <section className="mb-3 overflow-hidden rounded-xl border border-black/10 bg-white">
+      <div className="flex items-start gap-3 border-b border-black/10 bg-[#f8fafc] p-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d86f45] text-sm font-semibold text-white">
+          ?
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-neutral-950">原型细节确认</p>
+            <span className="rounded-full border border-emerald-500/15 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+              可跳过
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-neutral-500">
+            Agent 会把这些答案和 PRD 一起用于页面结构、交互状态和视觉方向。
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-3 p-3">
+        <QuestionChoiceGroup
+          label="主要适配平台"
+          onChange={(value) => update("platform", value)}
+          options={["Mobile 优先，响应式适配", "Desktop Web", "Tablet", "全端响应式"]}
+          value={answers.platform}
+        />
+        <QuestionChoiceGroup
+          label="视觉风格"
+          onChange={(value) => update("visualStyle", value)}
+          options={["现代产品级 UI", "专业 / 安全感", "内容阅读感", "轻量化", "暗色模式"]}
+          value={answers.visualStyle}
+        />
+        <QuestionChoiceGroup
+          label="交互深度"
+          onChange={(value) => update("interactionDepth", value)}
+          options={["关键路径可点击", "静态高保真", "包含空 / 加载 / 错误状态"]}
+          value={answers.interactionDepth}
+        />
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold text-neutral-500">需要设计的页面范围</span>
+          <input
+            className="h-9 rounded-lg border border-black/10 bg-neutral-50 px-2.5 text-xs outline-none placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+            onChange={(event) => update("pageScope", event.target.value)}
+            placeholder="例如：首页 + 阅读器 + 笔记页 + 个人中心"
+            value={answers.pageScope}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold text-neutral-500">品牌 / 参考上下文</span>
+          <input
+            className="h-9 rounded-lg border border-black/10 bg-neutral-50 px-2.5 text-xs outline-none placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+            onChange={(event) => update("brandContext", event.target.value)}
+            placeholder="例如：参考某产品、已有色板、你来决定"
+            value={answers.brandContext}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="text-[11px] font-semibold text-neutral-500">其他要求</span>
+          <textarea
+            className="min-h-16 resize-y rounded-lg border border-black/10 bg-neutral-50 px-2.5 py-2 text-xs leading-5 outline-none placeholder:text-neutral-400 focus:border-[#12a7ff] focus:ring-4 focus:ring-[#94D8FF]/25"
+            onChange={(event) => update("notes", event.target.value)}
+            placeholder="文案偏好、付费点、页面状态、不要出现的元素..."
+            value={answers.notes}
+          />
+        </label>
+      </div>
+    </section>
+  );
+}
+
 function AgentConversationPane({
   activeTab,
   agentEvents,
@@ -1305,9 +1487,11 @@ function AgentConversationPane({
   onPromptChange,
   onPrototypeKindChange,
   onPrototypeTemplateChange,
+  onPrototypeQuestionsChange,
   onSelectPreset,
   prompt,
   prototypeKind,
+  prototypeQuestions,
   prototypeTemplateId,
   providerId,
   runError,
@@ -1331,9 +1515,11 @@ function AgentConversationPane({
   onPromptChange: (value: string) => void;
   onPrototypeKindChange: (value: PrototypeKind | "auto") => void;
   onPrototypeTemplateChange: (value: PrototypeTemplateId) => void;
+  onPrototypeQuestionsChange: (answers: PrototypeQuestionAnswers) => void;
   onSelectPreset: (prompt: string) => void;
   prompt: string;
   prototypeKind: PrototypeKind | "auto";
+  prototypeQuestions: PrototypeQuestionAnswers;
   prototypeTemplateId: PrototypeTemplateId;
   providerId: AgentProviderId;
   runError: string | null;
@@ -1345,6 +1531,7 @@ function AgentConversationPane({
   workflowDefinition?: WorkflowDefinition;
 }) {
   const [briefOpen, setBriefOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const workflowName = workflowDefinition?.name ?? getWorkflowLabelForTab(activeTab);
   const workflowDescription =
     workflowDefinition?.description ?? "输出会落到中间的文档文件和原型文件。";
@@ -1394,6 +1581,13 @@ function AgentConversationPane({
             </div>
           ) : null}
         </div>
+
+        {showPrototypeControls ? (
+          <PrototypeQuestionForm
+            answers={prototypeQuestions}
+            onChange={onPrototypeQuestionsChange}
+          />
+        ) : null}
 
         {showPrototypeControls ? (
           <section className="mb-3 rounded-xl border border-black/10 bg-white p-3">
@@ -1482,7 +1676,7 @@ function AgentConversationPane({
         ) : null}
       </div>
 
-      <form className="border-t border-black/10 bg-white p-3" onSubmit={onGenerate}>
+      <form className="border-t border-black/10 bg-white p-3" onSubmit={onGenerate} ref={formRef}>
         <div className="rounded-2xl border border-black/10 bg-[#fbfaf7] p-2 shadow-sm">
           <div className="flex min-w-0 items-center gap-1 overflow-x-auto pb-2">
             {demoPrompts.map((preset) => (
@@ -1558,7 +1752,8 @@ function AgentConversationPane({
               aria-label="运行当前 PM 工作流"
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-950 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-neutral-400"
               disabled={isGenerating}
-              type="submit"
+              onClick={() => formRef.current?.requestSubmit()}
+              type="button"
             >
               {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
             </button>
@@ -1978,8 +2173,11 @@ export function ArtifactCanvas({
   activeViewport,
   agentEvents,
   onAgentEventsChange,
+  onProjectStatusChange,
   onProductPackChange,
+  onRunHistoryChange,
   productPack,
+  project,
   providerId = "mock",
   workflowDefinition,
 }: {
@@ -1987,12 +2185,15 @@ export function ArtifactCanvas({
   activeViewport?: string;
   agentEvents?: HarnessEvent[];
   onAgentEventsChange?: (events: HarnessEvent[]) => void;
+  onProjectStatusChange?: (status: StudioProjectStatus) => void;
   onProductPackChange?: (productPack: ProductPack) => void;
+  onRunHistoryChange?: (runHistory: AgentRunHistoryItem[]) => void;
   productPack?: ProductPack;
+  project?: StudioProjectRecord;
   providerId?: AgentProviderId;
   workflowDefinition?: WorkflowDefinition;
 }) {
-  const initialPack = productPack;
+  const initialPack = project?.productPack ?? productPack;
   const initialWorkflowDefinition =
     workflowDefinition ?? getPresetWorkflowDefinition(getWorkflowIdForTab(getTabFromArtifactParam(activeArtifact)));
   const requestedFileId = initialPack
@@ -2001,16 +2202,19 @@ export function ArtifactCanvas({
       : getPreferredFileIdForWorkflow(initialPack, {}, initialWorkflowDefinition)
     : undefined;
   const [activeMode, setActiveMode] = useState<"生成" | "修改" | "源码" | "预览">("预览");
-  const [currentEvents, setCurrentEvents] = useState(agentEvents);
+  const [currentEvents, setCurrentEvents] = useState(project?.agentEvents ?? agentEvents ?? emptyHarnessEvents);
   const [currentPack, setCurrentPack] = useState<ProductPack | undefined>(initialPack);
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportingAction, setExportingAction] = useState<string | null>(null);
   const [lastRunMode, setLastRunMode] = useState<AgentRunMode>("mock");
-  const [runHistory, setRunHistory] = useState<AgentRunHistoryItem[]>([]);
-  const [prompt, setPrompt] = useState(initialPack?.sourceIdea ?? "");
+  const [runHistory, setRunHistory] = useState<AgentRunHistoryItem[]>(project?.runHistory ?? []);
+  const [prompt, setPrompt] = useState(project?.sourceIdea ?? initialPack?.sourceIdea ?? "");
   const [intakeAudience, setIntakeAudience] = useState("");
   const [intakeOutcome, setIntakeOutcome] = useState("");
   const [intakeConstraints, setIntakeConstraints] = useState("");
+  const [prototypeQuestions, setPrototypeQuestions] = useState<PrototypeQuestionAnswers>(
+    defaultPrototypeQuestions,
+  );
   const [runError, setRunError] = useState<string | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | undefined>(requestedFileId);
   const [activeWorkspaceTabId, setActiveWorkspaceTabId] = useState<WorkspaceTabId>(
@@ -2025,6 +2229,8 @@ export function ArtifactCanvas({
   const runInputRef = useRef<HTMLTextAreaElement>(null);
   const activeTabRef = useRef(getTabFromArtifactParam(activeArtifact));
   const currentPackRef = useRef<ProductPack | undefined>(currentPack);
+  const lastSyncedProjectIdRef = useRef<string | undefined>(undefined);
+  const projectRef = useRef<StudioProjectRecord | undefined>(project);
   const fallbackActiveTab = getTabFromArtifactParam(activeArtifact);
   const activeWorkflowDefinition =
     workflowDefinition ?? getPresetWorkflowDefinition(getWorkflowIdForTab(fallbackActiveTab));
@@ -2116,6 +2322,10 @@ export function ArtifactCanvas({
   }, [activeTab, currentPack]);
 
   useEffect(() => {
+    projectRef.current = project;
+  }, [project]);
+
+  useEffect(() => {
     if (!requestedFileId) return;
 
     const timeoutId = window.setTimeout(() => openStudioFile(requestedFileId), 0);
@@ -2124,7 +2334,50 @@ export function ArtifactCanvas({
   }, [openStudioFile, requestedFileId]);
 
   useEffect(() => {
-    if (productPack) return;
+    if (!project) {
+      lastSyncedProjectIdRef.current = undefined;
+      return;
+    }
+
+    if (lastSyncedProjectIdRef.current === project.id) return;
+
+    lastSyncedProjectIdRef.current = project.id;
+
+    const nextPack = project.productPack;
+    const nextEvents = project.agentEvents ?? emptyHarnessEvents;
+    const nextRunHistory = project.runHistory ?? [];
+    const timeoutId = window.setTimeout(() => {
+      setCurrentPack((current) => (current === nextPack ? current : nextPack));
+      setPrompt((current) => (current === project.sourceIdea ? current : project.sourceIdea));
+      setCurrentEvents((current) => (current === nextEvents ? current : nextEvents));
+      setRunHistory((current) => (current === nextRunHistory ? current : nextRunHistory));
+      setLastRunMode(nextRunHistory[0]?.runMode ?? "mock");
+
+      if (!nextPack) {
+        setActiveFileId(undefined);
+        setActiveWorkspaceTabId(designFilesTabId);
+        setOpenFileIds([]);
+        return;
+      }
+
+      const nextFileId = activeArtifact
+        ? getFileIdForArtifact(activeArtifact, nextPack, prototypeOptions)
+        : getPreferredFileIdForWorkflow(nextPack, prototypeOptions, activeWorkflowDefinition);
+
+      if (nextFileId) {
+        setActiveFileId((current) => (current === nextFileId ? current : nextFileId));
+        setActiveWorkspaceTabId((current) => (current === nextFileId ? current : nextFileId));
+        setOpenFileIds((current) =>
+          current.length === 1 && current[0] === nextFileId ? current : [nextFileId],
+        );
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeArtifact, activeWorkflowDefinition, project, prototypeOptions]);
+
+  useEffect(() => {
+    if (project || productPack) return;
 
     let storedPack: ProductPack | null = null;
     let storedEvents: HarnessEvent[] | null = null;
@@ -2166,21 +2419,23 @@ export function ArtifactCanvas({
 
     const timeoutId = window.setTimeout(() => {
       if (storedPack) {
-        setCurrentPack(storedPack);
+        setCurrentPack((current) => (current === storedPack ? current : storedPack));
         setPrompt(storedPack.sourceIdea);
         const nextFileId = activeArtifact
-          ? getFileIdForArtifact(activeArtifact, storedPack)
+          ? getFileIdForArtifact(activeArtifact, storedPack, prototypeOptions)
           : getPreferredFileIdForWorkflow(storedPack, prototypeOptions, activeWorkflowDefinition);
 
         if (nextFileId) {
-          setActiveFileId(nextFileId);
-          setActiveWorkspaceTabId(nextFileId);
-          setOpenFileIds([nextFileId]);
+          setActiveFileId((current) => (current === nextFileId ? current : nextFileId));
+          setActiveWorkspaceTabId((current) => (current === nextFileId ? current : nextFileId));
+          setOpenFileIds((current) =>
+            current.length === 1 && current[0] === nextFileId ? current : [nextFileId],
+          );
         }
       }
 
       if (storedEvents) {
-        setCurrentEvents(storedEvents);
+        setCurrentEvents((current) => (current === storedEvents ? current : storedEvents));
       }
 
       if (storedRunHistory) {
@@ -2190,28 +2445,31 @@ export function ArtifactCanvas({
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeArtifact, activeWorkflowDefinition, productPack, prototypeOptions]);
+  }, [activeArtifact, activeWorkflowDefinition, productPack, project, prototypeOptions]);
 
   useEffect(() => {
-    if (!productPack) return;
+    if (!productPack || project) return;
 
+    const nextAgentEvents = agentEvents ?? emptyHarnessEvents;
     const timeoutId = window.setTimeout(() => {
-      setCurrentPack(productPack);
+      setCurrentPack((current) => (current === productPack ? current : productPack));
       setPrompt(productPack.sourceIdea);
-      setCurrentEvents(agentEvents);
+      setCurrentEvents((current) => (current === nextAgentEvents ? current : nextAgentEvents));
       const nextFileId = activeArtifact
-        ? getFileIdForArtifact(activeArtifact, productPack)
+        ? getFileIdForArtifact(activeArtifact, productPack, prototypeOptions)
         : getPreferredFileIdForWorkflow(productPack, prototypeOptions, activeWorkflowDefinition);
 
       if (nextFileId) {
-        setActiveFileId(nextFileId);
-        setActiveWorkspaceTabId(nextFileId);
-        setOpenFileIds([nextFileId]);
+        setActiveFileId((current) => (current === nextFileId ? current : nextFileId));
+        setActiveWorkspaceTabId((current) => (current === nextFileId ? current : nextFileId));
+        setOpenFileIds((current) =>
+          current.length === 1 && current[0] === nextFileId ? current : [nextFileId],
+        );
       }
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeArtifact, activeWorkflowDefinition, agentEvents, productPack, prototypeOptions]);
+  }, [activeArtifact, activeWorkflowDefinition, agentEvents, productPack, project, prototypeOptions]);
 
   useEffect(() => {
     if (!currentPack) return;
@@ -2225,9 +2483,11 @@ export function ArtifactCanvas({
     if (!nextFileId) return;
 
     const timeoutId = window.setTimeout(() => {
-      setActiveFileId(nextFileId);
-      setActiveWorkspaceTabId(nextFileId);
-      setOpenFileIds([nextFileId]);
+      setActiveFileId((current) => (current === nextFileId ? current : nextFileId));
+      setActiveWorkspaceTabId((current) => (current === nextFileId ? current : nextFileId));
+      setOpenFileIds((current) =>
+        current.length === 1 && current[0] === nextFileId ? current : [nextFileId],
+      );
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -2235,21 +2495,24 @@ export function ArtifactCanvas({
 
   useEffect(() => {
     if (!currentPack) return;
+    if (projectRef.current && currentPack === projectRef.current.productPack) return;
 
-    window.localStorage.setItem(localProductPackStorageKey, JSON.stringify(currentPack));
     onProductPackChange?.(currentPack);
   }, [currentPack, onProductPackChange]);
 
   useEffect(() => {
+    if (projectRef.current && currentEvents === projectRef.current.agentEvents) return;
+
     if (currentEvents?.length) {
-      window.localStorage.setItem(localEventsStorageKey, JSON.stringify(currentEvents));
       onAgentEventsChange?.(currentEvents);
     }
   }, [currentEvents, onAgentEventsChange]);
 
   useEffect(() => {
-    window.localStorage.setItem(localRunHistoryStorageKey, JSON.stringify(runHistory));
-  }, [runHistory]);
+    if (projectRef.current && runHistory === projectRef.current.runHistory) return;
+
+    onRunHistoryChange?.(runHistory);
+  }, [onRunHistoryChange, runHistory]);
 
   const handleHandoffAction = useCallback((action: ArtifactAction) => {
     const pack = currentPackRef.current;
@@ -2297,14 +2560,14 @@ export function ArtifactCanvas({
     const editedSource = fileSourceDrafts[`${pack.id}:${file.id}`];
 
     if (
-      action.format === "markdown" &&
+      (action.format === "markdown" || action.format === "html") &&
       action.artifactId === file.artifactId &&
       editedSource
     ) {
       downloadBrowserFile({
         body: editedSource,
-        filename: `${pack.id}-${action.artifactId}.md`,
-        type: "text/markdown;charset=utf-8",
+        filename: `${pack.id}-${action.artifactId}.${action.format === "html" ? "html" : "md"}`,
+        type: action.format === "html" ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8",
       });
       return;
     }
@@ -2375,10 +2638,22 @@ export function ArtifactCanvas({
   }, [handleExportAction]);
 
   function buildIntakeInput(baseInput: string) {
+    const prototypeContext = workflowIncludesPrototype(activeWorkflowDefinition)
+      ? [
+          "原型确认信息：",
+          `- 主要适配平台：${prototypeQuestions.platform}`,
+          `- 视觉风格：${prototypeQuestions.visualStyle}`,
+          `- 交互深度：${prototypeQuestions.interactionDepth}`,
+          `- 页面范围：${prototypeQuestions.pageScope}`,
+          `- 品牌上下文：${prototypeQuestions.brandContext}`,
+          prototypeQuestions.notes.trim() ? `- 其他要求：${prototypeQuestions.notes.trim()}` : "",
+        ].filter(Boolean)
+      : [];
     const context = [
       intakeAudience.trim() ? `面向${intakeAudience.trim()}。` : "",
       intakeOutcome.trim() ? `帮助${intakeOutcome.trim()}。` : "",
       intakeConstraints.trim() ? `约束条件：${intakeConstraints.trim()}` : "",
+      ...prototypeContext,
     ].filter(Boolean);
 
     return [baseInput, ...context].join("\n");
@@ -2398,8 +2673,10 @@ export function ArtifactCanvas({
     const input = buildIntakeInput(baseInput);
     setIsGenerating(true);
     setRunError(null);
+    onProjectStatusChange?.("running");
     setCurrentEvents(buildWorkflowProgressEvents(activeWorkflowDefinition, 0));
     let progressStepIndex = 0;
+    let generationSucceeded = false;
     const progressStepCount = activeWorkflowDefinition?.steps.filter((step) => step.enabled).length ?? 1;
     const progressTimerId = window.setInterval(() => {
       progressStepIndex = Math.min(progressStepIndex + 1, Math.max(progressStepCount - 1, 0));
@@ -2428,9 +2705,12 @@ export function ArtifactCanvas({
       }
 
       const generated = (await response.json()) as GeneratedPack;
-      setCurrentEvents(generated.events);
+      const completedEvents = buildCompletedRunEvents(activeWorkflowDefinition, generated.events);
+
+      setCurrentEvents(completedEvents);
       setLastRunMode(generated.runMode ?? "mock");
       setCurrentPack(generated.productPack);
+      generationSucceeded = true;
       setRunHistory((history) => [
         {
           createdAt: new Date().toISOString(),
@@ -2454,12 +2734,22 @@ export function ArtifactCanvas({
       if (nextFileId) {
         setActiveFileId(nextFileId);
         setActiveWorkspaceTabId(nextFileId);
-        setOpenFileIds([nextFileId]);
+        setOpenFileIds((current) =>
+          current.length === 1 && current[0] === nextFileId ? current : [nextFileId],
+        );
       }
     } catch (error) {
       setRunError(error instanceof Error ? error.message : "生成失败");
+      onProjectStatusChange?.("error");
     } finally {
       window.clearInterval(progressTimerId);
+      if (generationSucceeded) {
+        setCurrentEvents((events) =>
+          events?.some((event) => event.type === "done")
+            ? events
+            : buildWorkflowProgressEvents(activeWorkflowDefinition, progressStepCount, true),
+        );
+      }
       setIsGenerating(false);
     }
   }
@@ -2523,7 +2813,7 @@ export function ArtifactCanvas({
       };
     });
     setPrototypeLinkSource(null);
-    const nextFileId = getFileIdForArtifact("prototype", packBeforeUpdate);
+    const nextFileId = getFileIdForArtifact("prototype", packBeforeUpdate, prototypeOptions);
 
     if (nextFileId) {
       openStudioFile(nextFileId);
@@ -2562,15 +2852,18 @@ export function ArtifactCanvas({
             setPrototypeTemplateId(value);
             clearPrototypeSourceDrafts();
           }}
+          onPrototypeQuestionsChange={setPrototypeQuestions}
           onSelectPreset={(presetPrompt) => {
             setPrompt(presetPrompt);
             setIntakeAudience("");
             setIntakeOutcome("");
             setIntakeConstraints("");
+            setPrototypeQuestions(defaultPrototypeQuestions);
             setActiveMode("预览");
           }}
           prompt={prompt}
           prototypeKind={prototypeKind}
+          prototypeQuestions={prototypeQuestions}
           prototypeTemplateId={prototypeTemplateId}
           providerId={providerId}
           runError={runError}

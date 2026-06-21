@@ -156,11 +156,15 @@ function escapeHtml(value: string | number | undefined | null) {
     .replace(/'/g, "&#39;");
 }
 
-function slugify(value: string, fallback = "screen") {
-  const ascii = value
+function slugifyAscii(value: string) {
+  return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function slugify(value: string, fallback = "screen") {
+  const ascii = slugifyAscii(value);
 
   if (ascii) return ascii;
 
@@ -171,6 +175,10 @@ function slugify(value: string, fallback = "screen") {
   }
 
   return `${fallback}-${hash.toString(36)}`;
+}
+
+function screenFileSlug(value: string) {
+  return slugifyAscii(value) || "screen";
 }
 
 function getStyleString(pack: ProductPack, id: string, defaultStyles = "") {
@@ -232,7 +240,7 @@ function resolveTemplateId(
 }
 
 function screenPath(screen: ProductPack["prototype"]["screens"][number], index: number) {
-  return `screens/${String(index + 1).padStart(2, "0")}-${slugify(screen.name, "screen")}.html`;
+  return `screens/${String(index + 1).padStart(2, "0")}-${screenFileSlug(screen.name)}.html`;
 }
 
 export function getPrototypeScreenPath(pack: ProductPack, index: number) {
@@ -1301,25 +1309,52 @@ function normalizeGeneratedPrototypePath(path: string) {
   return normalized;
 }
 
+function shouldMapGeneratedHtmlToScreen(path: string) {
+  if (path === "index.html") return false;
+  if (!path.toLowerCase().endsWith(".html")) return false;
+  if (/^screens\/\d{1,2}-[-_a-z0-9]+\.html$/i.test(path)) return false;
+
+  return (
+    /^(?:screen|page|prototype|primary|home|index)[-_a-z0-9]*\.html$/i.test(path) ||
+    /^screens\/(?:screen|page|prototype|primary|home|index)[-_a-z0-9]*\.html$/i.test(path)
+  );
+}
+
 function getGeneratedPrototypeFiles(pack: ProductPack): PrototypeArtifactFile[] {
   const generated = pack.prototype.generatedArtifact;
 
   if (!generated?.files?.length) return [];
 
   const seen = new Set<string>();
+  let screenFileIndex = 0;
 
   return generated.files
     .map((file) => {
-      const normalizedPath = normalizeGeneratedPrototypePath(file.path);
+      const rawPath = normalizeGeneratedPrototypePath(file.path);
+      let normalizedPath = rawPath;
+
+      if (rawPath && shouldMapGeneratedHtmlToScreen(rawPath)) {
+        normalizedPath = getPrototypeScreenPath(
+          pack,
+          Math.min(screenFileIndex, Math.max(pack.prototype.screens.length - 1, 0)),
+        );
+        screenFileIndex += 1;
+      }
 
       if (!normalizedPath || seen.has(normalizedPath)) return undefined;
       seen.add(normalizedPath);
 
+      const screenName = normalizedPath.startsWith("screens/")
+        ? pack.prototype.screens[Number(normalizedPath.match(/^screens\/(\d{2})-/)?.[1] ?? "1") - 1]?.name
+        : undefined;
+
       return {
         path: normalizedPath,
-        name: file.name ?? normalizedPath.split("/").pop() ?? normalizedPath,
+        name: screenName
+          ? `${String(pack.prototype.screens.findIndex((screen) => screen.name === screenName) + 1).padStart(2, "0")}-${screenName}.html`
+          : file.name ?? normalizedPath.split("/").pop() ?? normalizedPath,
         mimeType: file.mimeType,
-        purpose: file.purpose,
+        purpose: screenName ? `agent-generated product screen: ${screenName}` : file.purpose,
         editable: file.editable ?? true,
         body: file.body,
       };
@@ -1334,8 +1369,16 @@ function mergeGeneratedPrototypeFiles(
   if (!generatedFiles.length) return fallbackFiles;
 
   const generatedByPath = new Map(generatedFiles.map((file) => [file.path, file]));
-  const merged = fallbackFiles.map((file) => generatedByPath.get(file.path) ?? file);
-  const fallbackPaths = new Set(fallbackFiles.map((file) => file.path));
+  const hasGeneratedScreenHtml = generatedFiles.some(
+    (file) => file.path.startsWith("screens/") && file.path.toLowerCase().endsWith(".html"),
+  );
+  const fallbackFilesToKeep = hasGeneratedScreenHtml
+    ? fallbackFiles.filter(
+        (file) => !(file.path.startsWith("screens/") && file.path.toLowerCase().endsWith(".html")),
+      )
+    : fallbackFiles;
+  const merged = fallbackFilesToKeep.map((file) => generatedByPath.get(file.path) ?? file);
+  const fallbackPaths = new Set(fallbackFilesToKeep.map((file) => file.path));
   const extraGeneratedFiles = generatedFiles.filter((file) => !fallbackPaths.has(file.path));
 
   return [...merged, ...extraGeneratedFiles];
@@ -1349,11 +1392,15 @@ export function buildPrototypeArtifactBundle(
   const brief = buildPrototypeBrief(pack, options);
   const screenFiles = pack.prototype.screens.map((screen, index) => screenPath(screen, index));
   const generatedFiles = getGeneratedPrototypeFiles(pack);
+  const generatedScreenFiles = generatedFiles
+    .filter((file) => file.path.startsWith("screens/") && file.path.toLowerCase().endsWith(".html"))
+    .map((file) => file.path);
+  const effectiveScreenFiles = generatedScreenFiles.length ? generatedScreenFiles : screenFiles;
   const filePaths = Array.from(new Set([
     "artifact.json",
     "index.html.artifact.json",
     "index.html",
-    ...screenFiles,
+    ...effectiveScreenFiles,
     ...generatedFiles.map((file) => file.path),
     "data.json",
     "design-manifest.json",
@@ -1389,14 +1436,16 @@ export function buildPrototypeArtifactBundle(
       editable: true,
       body: renderIndexHtml(pack, brief),
     },
-    ...pack.prototype.screens.map((screen, index) => ({
-      path: screenPath(screen, index),
-      name: `${String(index + 1).padStart(2, "0")}-${slugify(screen.name, "screen")}.html`,
-      mimeType: "text/html",
-      purpose: `user-facing prototype screen: ${screen.name}`,
-      editable: true,
-      body: renderScreenHtml(pack, brief, index, isEditing),
-    })),
+    ...(generatedScreenFiles.length
+      ? []
+      : pack.prototype.screens.map((screen, index) => ({
+          path: screenPath(screen, index),
+          name: `${String(index + 1).padStart(2, "0")}-${screenFileSlug(screen.name)}.html`,
+          mimeType: "text/html",
+          purpose: `user-facing prototype screen: ${screen.name}`,
+          editable: true,
+          body: renderScreenHtml(pack, brief, index, isEditing),
+        }))),
     {
       path: "data.json",
       name: "data.json",

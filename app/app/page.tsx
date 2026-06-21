@@ -1,15 +1,5 @@
-import { StudioShell } from "@/components/studio/studio-shell";
+import { ProjectHome } from "@/components/studio/project-home";
 
-export default async function WorkspacePage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ artifact?: string; viewport?: string }>;
-}) {
-  const params = await searchParams;
-  return (
-    <StudioShell
-      activeArtifact={params?.artifact}
-      activeViewport={params?.viewport}
-    />
-  );
+export default function AppPage() {
+  return <ProjectHome />;
 }
