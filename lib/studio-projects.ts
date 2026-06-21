@@ -49,7 +49,7 @@ type LegacyDemoProject = {
 
 const storageProjectKey = "pmstudio:projects:v5";
 const storageActiveProjectKey = "pmstudio:active-project-id:v5";
-const storageShowcaseSeededKey = "pmstudio:showcase-seeded:v5";
+const storageShowcaseSeededKey = "pmstudio:showcase-seeded:v6";
 const legacyProjectsKey = "pmstudio:projects:v4";
 const legacyActiveProjectKey = "pmstudio:active-project-id:v4";
 const legacyLastProductPackKey = "pmstudio:last-product-pack:v4";
@@ -346,11 +346,14 @@ type ShowcaseProjectScreen = ProductPack["prototype"]["screens"][number] & {
   slug: string;
 };
 
+type ShowcaseProjectKind = "finance" | "reading" | "coffee" | "clinic";
+
 type ShowcaseProjectSeed = {
   createdAt: string;
   description: string;
   designSystem: string;
   id: string;
+  kind: ShowcaseProjectKind;
   name: string;
   sourceIdea: string;
   screens: ShowcaseProjectScreen[];
@@ -362,6 +365,7 @@ const showcaseProjectSeeds: ShowcaseProjectSeed[] = [
     description: "面向财富顾问的 AI 投研工作台，展示市场简报、配置建议和客户材料导出链路。",
     designSystem: "Linear 风格 SaaS",
     id: "demo",
+    kind: "finance",
     name: "FinSight 智能投研工作台",
     sourceIdea: defaultFinSightIdea,
     screens: [
@@ -399,6 +403,7 @@ const showcaseProjectSeeds: ShowcaseProjectSeed[] = [
     description: "面向通勤和睡前阅读用户的移动端阅读 App，展示 PRD 到多屏原型的完整链路。",
     designSystem: "Apple Human Interface 风格",
     id: "showcase-reading-app",
+    kind: "reading",
     name: "ReadFlow 阅读成长 App",
     sourceIdea: "帮我生成一个面向通勤和睡前阅读用户的阅读 app PRD，并联动生成移动端原型。",
     screens: [
@@ -436,6 +441,7 @@ const showcaseProjectSeeds: ShowcaseProjectSeed[] = [
     description: "给独立咖啡店老板的订货、排班和会员运营工作台，展示运营型 AI 产品方案。",
     designSystem: "Notion 风格运营台",
     id: "showcase-coffee-ops",
+    kind: "coffee",
     name: "CoffeeOps 门店经营 Copilot",
     sourceIdea: "给独立咖啡店老板做一个自动订货、排班和会员运营 AI 工作台。",
     screens: [
@@ -473,6 +479,7 @@ const showcaseProjectSeeds: ShowcaseProjectSeed[] = [
     description: "面向小型诊所的预约、分诊和随访工作台，展示医疗服务运营场景。",
     designSystem: "PM Studio DESIGN.md",
     id: "showcase-clinic-intake",
+    kind: "clinic",
     name: "ClinicPilot 诊所分诊工作台",
     sourceIdea: "为小型诊所做一个患者预约、AI 分诊和复诊随访的运营工作台。",
     screens: [
@@ -507,148 +514,511 @@ const showcaseProjectSeeds: ShowcaseProjectSeed[] = [
   },
 ];
 
-function renderShowcaseIndex(seed: ShowcaseProjectSeed) {
-  const links = seed.screens
+type ShowcaseRow = {
+  label: string;
+  note?: string;
+  value: string;
+};
+
+type DesktopScreenContent = {
+  feedTitle: string;
+  headline: string;
+  metrics: ShowcaseRow[];
+  primaryRows: ShowcaseRow[];
+  primaryTitle: string;
+  railItems: string[];
+  railTitle: string;
+  secondaryRows: ShowcaseRow[];
+  secondaryTitle: string;
+};
+
+function renderRows(rows: ShowcaseRow[], prefix: string) {
+  return rows
     .map(
-      (screen, index) => `
-        <a class="screen-link" href="screens/${String(index + 1).padStart(2, "0")}-${screen.slug}.html">
-          <span>${escapeShowcaseHtml(String(index + 1).padStart(2, "0"))}</span>
-          <strong>${escapeShowcaseHtml(screen.name)}</strong>
-          <small>${escapeShowcaseHtml(screen.goal)}</small>
-        </a>`,
+      (row, index) => `<div class="row" data-od-id="${prefix}-row-${index}">
+        <span><strong>${escapeShowcaseHtml(row.label)}</strong>${row.note ? `<small>${escapeShowcaseHtml(row.note)}</small>` : ""}</span>
+        <b>${escapeShowcaseHtml(row.value)}</b>
+      </div>`,
     )
     .join("");
+}
 
+function renderMetricTiles(rows: ShowcaseRow[], prefix: string) {
+  return rows
+    .map(
+      (row, index) => `<div class="metric" data-od-id="${prefix}-metric-${index}">
+        <span>${escapeShowcaseHtml(row.label)}</span>
+        <strong>${escapeShowcaseHtml(row.value)}</strong>
+        ${row.note ? `<small>${escapeShowcaseHtml(row.note)}</small>` : ""}
+      </div>`,
+    )
+    .join("");
+}
+
+function renderPills(items: string[], prefix: string) {
+  return items
+    .map((item, index) => `<span data-od-id="${prefix}-pill-${index}">${escapeShowcaseHtml(item)}</span>`)
+    .join("");
+}
+
+function renderScreenNav(seed: ShowcaseProjectSeed, activeIndex: number) {
+  return seed.screens
+    .map(
+      (item, index) =>
+        `<a class="${index === activeIndex ? "active" : ""}" href="${String(index + 1).padStart(2, "0")}-${item.slug}.html" data-od-id="nav-${index}">${escapeShowcaseHtml(item.name)}</a>`,
+    )
+    .join("");
+}
+
+function renderPrototypeDocument({
+  accent,
+  body,
+  title,
+}: {
+  accent: string;
+  body: string;
+  title: string;
+}) {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeShowcaseHtml(seed.name)} Prototype</title>
+  <title>${escapeShowcaseHtml(title)}</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: #f5f5f1; color: #111; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    main { min-height: 100vh; display: grid; place-items: center; padding: 32px; }
-    section { width: min(920px, 100%); border: 1px solid #ddd; border-radius: 16px; background: white; box-shadow: 0 24px 60px rgba(17,17,17,.08); padding: 28px; }
-    h1 { margin: 10px 0 0; font-size: clamp(32px, 5vw, 56px); line-height: 1.02; letter-spacing: 0; }
-    p { margin: 12px 0 0; max-width: 680px; color: #6a6b6c; line-height: 1.7; }
-    .eyebrow { color: #12a7ff; font-size: 12px; font-weight: 800; text-transform: uppercase; }
-    .grid { margin-top: 24px; display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .screen-link { display: grid; gap: 8px; min-height: 176px; border: 1px solid #eee; border-radius: 12px; background: #fbfaf7; padding: 16px; color: inherit; text-decoration: none; }
-    .screen-link span { width: fit-content; border-radius: 999px; background: #111; color: white; padding: 5px 8px; font-size: 11px; font-weight: 800; }
-    .screen-link strong { font-size: 18px; }
-    .screen-link small { color: #6a6b6c; line-height: 1.5; }
-    @media (max-width: 760px) { main { padding: 18px; } section { padding: 20px; } .grid { grid-template-columns: 1fr; } }
+    body { margin: 0; min-height: 100vh; background: #f4f5f3; color: #111315; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    a { color: inherit; text-decoration: none; }
+    button { border: 0; border-radius: 10px; background: #111315; color: white; font: inherit; font-weight: 780; padding: 11px 14px; }
+    .stage { min-height: 100vh; padding: 20px; }
+    .shell { min-height: calc(100vh - 40px); display: grid; grid-template-columns: 236px minmax(0, 1fr); border: 1px solid #dedfd8; border-radius: 16px; background: white; overflow: hidden; box-shadow: 0 22px 70px rgba(17, 19, 21, .08); }
+    .sidebar { border-right: 1px solid #ebece6; background: #faf9f5; padding: 16px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 830; }
+    .mark { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px rgba(18, 167, 255, .12); }
+    .nav { display: grid; gap: 8px; margin-top: 22px; }
+    .nav a { border: 1px solid transparent; border-radius: 10px; color: #62656a; font-size: 13px; padding: 10px; }
+    .nav a.active { border-color: #d9dad3; background: white; color: #111315; box-shadow: 0 10px 26px rgba(17, 19, 21, .06); }
+    .workspace { min-width: 0; padding: 22px; }
+    .topbar, .hero-head, .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 830; text-transform: uppercase; }
+    h1 { margin: 8px 0 0; max-width: 820px; font-size: clamp(31px, 4.6vw, 56px); line-height: 1.04; letter-spacing: 0; }
+    h2, h3, p { margin: 0; }
+    .muted, small { color: #6a6d72; line-height: 1.55; }
+    .hero { margin-top: 18px; border: 1px solid #e7e8e2; border-radius: 16px; background: linear-gradient(135deg, #ffffff, #f8f9f5); padding: 18px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+    .metric, .card, .rail { border: 1px solid #e8e9e3; border-radius: 12px; background: #fff; padding: 14px; }
+    .metric strong { display: block; margin-top: 5px; font-size: 25px; line-height: 1.05; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 14px; margin-top: 14px; }
+    .rows { display: grid; gap: 8px; margin-top: 12px; }
+    .row { border-top: 1px solid #eeefea; padding-top: 10px; }
+    .row span { display: grid; gap: 2px; }
+    .row b { font-size: 13px; white-space: nowrap; }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .pills span { border: 1px solid #dedfd8; border-radius: 999px; background: #fbfaf7; color: #4b4e52; font-size: 12px; padding: 7px 9px; }
+    .rail { background: #fbfaf7; }
+    .feed { display: grid; gap: 9px; margin-top: 12px; }
+    .feed div { border-left: 3px solid var(--accent); background: white; border-radius: 8px; padding: 9px 10px; font-size: 13px; }
+    .phone-stage { min-height: 100vh; display: grid; place-items: center; grid-template-columns: minmax(320px, 390px) minmax(260px, 420px); gap: 28px; padding: 28px; }
+    .phone { width: min(390px, 100%); min-height: 760px; border: 10px solid #111315; border-radius: 34px; background: #fbfaf7; overflow: hidden; box-shadow: 0 22px 60px rgba(17, 19, 21, .16); }
+    .phone-main { padding: 18px; }
+    .status, .bottom-nav { display: flex; align-items: center; justify-content: space-between; }
+    .status { padding: 13px 20px 4px; font-size: 12px; font-weight: 780; }
+    .book-card { border-radius: 18px; background: white; padding: 16px; box-shadow: 0 12px 35px rgba(17, 19, 21, .07); }
+    .reading-lines { display: grid; gap: 11px; margin-top: 14px; }
+    .reading-lines i { display: block; height: 10px; border-radius: 999px; background: #e5e2d6; }
+    .bottom-nav { border-top: 1px solid #e2e0d8; margin-top: 18px; padding: 13px 18px; color: #606268; font-size: 12px; }
+    @media (max-width: 860px) { .stage { padding: 12px; } .shell, .grid, .phone-stage { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid #ebece6; } .kpis { grid-template-columns: 1fr; } .phone { min-height: 700px; } }
   </style>
 </head>
-<body>
-  <main>
-    <section data-od-id="showcase-index">
-      <span class="eyebrow">PM Studio Showcase</span>
-      <h1>${escapeShowcaseHtml(seed.name)}</h1>
-      <p>${escapeShowcaseHtml(seed.description)}</p>
-      <div class="grid">${links}</div>
-    </section>
-  </main>
+<body style="--accent: ${escapeShowcaseHtml(accent)};">
+${body}
 </body>
 </html>`;
 }
 
-function renderShowcaseScreen(seed: ShowcaseProjectSeed, pack: ProductPack, screen: ShowcaseProjectScreen, index: number) {
-  const secondary = seed.screens[(index + 1) % seed.screens.length];
-  const chips = screen.components
-    .map((component) => `<span>${escapeShowcaseHtml(component)}</span>`)
+function renderShowcaseIndex(seed: ShowcaseProjectSeed) {
+  const links = seed.screens
+    .map(
+      (screen, index) => `<a class="card" href="screens/${String(index + 1).padStart(2, "0")}-${screen.slug}.html" data-od-id="prototype-map-${index}">
+        <span class="eyebrow">Screen ${String(index + 1).padStart(2, "0")}</span>
+        <h3>${escapeShowcaseHtml(screen.name)}</h3>
+        <p class="muted">${escapeShowcaseHtml(screen.goal)}</p>
+      </a>`,
+    )
     .join("");
-  const roadmapItems = pack.roadmap[0]?.items ?? pack.prd.mvpScope.slice(0, 3);
 
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeShowcaseHtml(screen.name)} · ${escapeShowcaseHtml(seed.name)}</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: #f5f5f1; color: #111; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    button { font: inherit; }
-    .page { min-height: 100vh; padding: 26px; }
-    .shell { min-height: calc(100vh - 52px); display: grid; grid-template-columns: 260px minmax(0, 1fr); border: 1px solid #ddd; border-radius: 18px; background: white; box-shadow: 0 24px 70px rgba(17,17,17,.08); overflow: hidden; }
-    aside { border-right: 1px solid #eee; background: #fbfaf7; padding: 18px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; }
-    .dot { width: 12px; height: 12px; border-radius: 999px; background: ${screen.accent}; box-shadow: 0 0 0 5px color-mix(in oklch, ${screen.accent} 14%, transparent); }
-    nav { margin-top: 24px; display: grid; gap: 8px; }
-    nav a { border: 1px solid #eee; border-radius: 10px; background: white; padding: 11px; color: #6a6b6c; text-decoration: none; font-size: 13px; }
-    nav a.active { border-color: color-mix(in oklch, ${screen.accent} 45%, #ddd); color: #111; box-shadow: 0 10px 24px rgba(17,17,17,.06); }
-    main { min-width: 0; padding: 24px; }
-    .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    .label { color: ${screen.accent}; font-size: 12px; font-weight: 800; text-transform: uppercase; }
-    h1 { margin: 10px 0 0; max-width: 760px; font-size: clamp(32px, 5vw, 58px); line-height: 1.02; letter-spacing: 0; }
-    .goal { margin: 12px 0 0; max-width: 720px; color: #6a6b6c; line-height: 1.7; }
-    .primary { border: 0; border-radius: 10px; background: #111; color: white; padding: 11px 14px; font-weight: 750; }
-    .grid { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 16px; }
-    .panel { border: 1px solid #eee; border-radius: 14px; background: #fff; padding: 16px; }
-    .panel.warm { background: #fbfaf7; }
-    .metric { display: grid; gap: 8px; border-radius: 14px; background: color-mix(in oklch, ${screen.accent} 13%, white); padding: 16px; }
-    .metric strong { font-size: 28px; line-height: 1; }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .chips span { border: 1px solid #ddd; border-radius: 999px; background: white; padding: 8px 10px; font-size: 12px; color: #555; }
-    .rows { display: grid; gap: 10px; margin-top: 12px; }
-    .row { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #eee; padding: 10px 0; color: #6a6b6c; font-size: 13px; }
-    .row:last-child { border-bottom: 0; }
-    @media (max-width: 860px) { .page { padding: 14px; } .shell, .grid { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid #eee; } }
-  </style>
-</head>
-<body>
-  <div class="page">
-    <div class="shell" data-od-id="screen-${index}">
-      <aside>
-        <div class="brand"><span class="dot"></span>${escapeShowcaseHtml(seed.name)}</div>
-        <nav>
-          ${seed.screens
-            .map(
-              (item, itemIndex) =>
-                `<a class="${itemIndex === index ? "active" : ""}" href="${String(itemIndex + 1).padStart(2, "0")}-${item.slug}.html">${escapeShowcaseHtml(item.name)}</a>`,
-            )
-            .join("")}
-        </nav>
-      </aside>
-      <main>
-        <div class="top">
-          <div>
-            <span class="label">0${index + 1} / Prototype screen</span>
-            <h1 data-od-id="screen-${index}-name">${escapeShowcaseHtml(screen.name)}</h1>
-          </div>
-          <button class="primary" data-od-id="screen-${index}-action">${escapeShowcaseHtml(screen.primaryAction)}</button>
-        </div>
-        <p class="goal" data-od-id="screen-${index}-goal">${escapeShowcaseHtml(screen.goal)}</p>
-        <div class="grid">
-          <section class="panel">
-            <span class="label">核心模块</span>
-            <div class="chips">${chips}</div>
-            <div class="rows">
-              ${roadmapItems
-                .slice(0, 3)
-                .map((item, itemIndex) => `<div class="row"><span>${escapeShowcaseHtml(item)}</span><strong>0${itemIndex + 1}</strong></div>`)
-                .join("")}
-            </div>
-          </section>
-          <section class="panel warm">
-            <div class="metric">
-              <span class="label">Success metric</span>
-              <strong>${escapeShowcaseHtml(screen.metric)}</strong>
-              <small>${escapeShowcaseHtml(pack.prd.objective)}</small>
-            </div>
-            <div class="rows">
-              <div class="row"><span>下一屏</span><strong>${escapeShowcaseHtml(secondary.name)}</strong></div>
-              <div class="row"><span>PRD Trace</span><strong>${escapeShowcaseHtml(pack.prd.coreFeatures[index % pack.prd.coreFeatures.length] ?? "核心功能")}</strong></div>
-            </div>
-          </section>
-        </div>
-      </main>
+  return renderPrototypeDocument({
+    accent: seed.screens[0]?.accent ?? "#12A7FF",
+    title: `${seed.name} Prototype`,
+    body: `<main class="stage">
+  <section class="shell" data-od-id="prototype-launcher">
+    <aside class="sidebar">
+      <div class="logo"><span class="mark"></span>${escapeShowcaseHtml(seed.name)}</div>
+      <div class="nav">${seed.screens
+        .map(
+          (screen, index) =>
+            `<a href="screens/${String(index + 1).padStart(2, "0")}-${screen.slug}.html">${escapeShowcaseHtml(screen.name)}</a>`,
+        )
+        .join("")}</div>
+    </aside>
+    <div class="workspace">
+      <span class="eyebrow">Generated product prototype</span>
+      <h1>${escapeShowcaseHtml(seed.name)}</h1>
+      <p class="muted">${escapeShowcaseHtml(seed.description)}</p>
+      <div class="grid" data-od-id="prototype-screen-map">${links}</div>
     </div>
-  </div>
-</body>
-</html>`;
+  </section>
+</main>`,
+  });
+}
+
+function renderDesktopProductScreen(
+  seed: ShowcaseProjectSeed,
+  screen: ShowcaseProjectScreen,
+  index: number,
+  content: DesktopScreenContent,
+) {
+  return renderPrototypeDocument({
+    accent: screen.accent,
+    title: `${screen.name} · ${seed.name}`,
+    body: `<main class="stage">
+  <section class="shell" data-od-id="${seed.kind}-screen-${index}">
+    <aside class="sidebar">
+      <div class="logo"><span class="mark"></span>${escapeShowcaseHtml(seed.name)}</div>
+      <nav class="nav">${renderScreenNav(seed, index)}</nav>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <span class="eyebrow">${escapeShowcaseHtml(content.feedTitle)}</span>
+          <h1 data-od-id="screen-title-${index}">${escapeShowcaseHtml(content.headline)}</h1>
+        </div>
+        <button data-od-id="primary-action-${index}">${escapeShowcaseHtml(screen.primaryAction)}</button>
+      </header>
+      <section class="hero" data-od-id="hero-${index}">
+        <div class="hero-head">
+          <p class="muted">${escapeShowcaseHtml(screen.goal)}</p>
+          <strong>${escapeShowcaseHtml(screen.metric)}</strong>
+        </div>
+        <div class="kpis">${renderMetricTiles(content.metrics, `metric-${index}`)}</div>
+      </section>
+      <section class="grid">
+        <div class="card" data-od-id="primary-panel-${index}">
+          <h2>${escapeShowcaseHtml(content.primaryTitle)}</h2>
+          <div class="rows">${renderRows(content.primaryRows, `primary-${index}`)}</div>
+          <div class="pills">${renderPills(screen.components, `component-${index}`)}</div>
+        </div>
+        <div class="rail" data-od-id="side-panel-${index}">
+          <h2>${escapeShowcaseHtml(content.secondaryTitle)}</h2>
+          <div class="rows">${renderRows(content.secondaryRows, `secondary-${index}`)}</div>
+        </div>
+      </section>
+      <section class="grid">
+        <div class="card" data-od-id="workflow-${index}">
+          <h2>${escapeShowcaseHtml(content.railTitle)}</h2>
+          <div class="feed">${content.railItems.map((item, itemIndex) => `<div data-od-id="rail-${index}-${itemIndex}">${escapeShowcaseHtml(item)}</div>`).join("")}</div>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>`,
+  });
+}
+
+function renderFinSightScreen(seed: ShowcaseProjectSeed, screen: ShowcaseProjectScreen, index: number) {
+  const views: DesktopScreenContent[] = [
+    {
+      feedTitle: "Market command center",
+      headline: "把隔夜市场波动翻译成顾问今天能执行的客户动作",
+      metrics: [
+        { label: "风险客户", value: "18", note: "组合波动超过阈值" },
+        { label: "可发送简报", value: "42", note: "已通过合规校验" },
+        { label: "AI 摘要耗时", value: "2m 18s", note: "含宏观、行业和持仓解释" },
+      ],
+      primaryRows: [
+        { label: "美债收益率上行", value: "高影响", note: "影响固收和红利配置" },
+        { label: "AI 芯片板块回撤", value: "需解释", note: "3 位客户持仓集中" },
+        { label: "黄金波动放大", value: "观察", note: "避险资产配置复核" },
+      ],
+      primaryTitle: "今日市场雷达",
+      railItems: ["生成 3 版不同风险偏好的市场简报", "标记需要人工复核的合规措辞", "把客户组合页同步为待跟进队列"],
+      railTitle: "顾问下一步",
+      secondaryRows: [
+        { label: "王女士", value: "优先", note: "科技股仓位 38%" },
+        { label: "陈先生", value: "今日联系", note: "债券久期偏长" },
+        { label: "家庭账户 A", value: "简报可发", note: "低风险措辞已替换" },
+      ],
+      secondaryTitle: "客户跟进优先级",
+    },
+    {
+      feedTitle: "Portfolio rebalance",
+      headline: "从客户目标反推组合偏离，并给出可解释的再平衡建议",
+      metrics: [
+        { label: "偏离组合", value: "7", note: "超过 IPS 范围" },
+        { label: "预计回撤改善", value: "-1.8%", note: "基于压力情景" },
+        { label: "建议可信度", value: "82%", note: "需要顾问确认" },
+      ],
+      primaryRows: [
+        { label: "减持纳指 ETF", value: "-6%", note: "降低单一因子暴露" },
+        { label: "增配短债", value: "+4%", note: "匹配 12 个月现金需求" },
+        { label: "保留黄金", value: "不变", note: "对冲地缘风险" },
+      ],
+      primaryTitle: "组合调整建议",
+      railItems: ["对比调整前后风险雷达", "生成客户可读解释", "保留每条建议的市场依据和 PRD 链接"],
+      railTitle: "解释链路",
+      secondaryRows: [
+        { label: "适配客户", value: "稳健型" },
+        { label: "审批状态", value: "待顾问确认" },
+        { label: "预计沟通时间", value: "6 分钟" },
+      ],
+      secondaryTitle: "执行状态",
+    },
+    {
+      feedTitle: "Client handoff",
+      headline: "把确认后的投顾建议变成可发送的客户材料和审计记录",
+      metrics: [
+        { label: "合规命中", value: "0", note: "当前版本无阻断" },
+        { label: "材料页数", value: "6", note: "含摘要、依据、风险揭示" },
+        { label: "返工风险", value: "低", note: "已替换收益承诺表述" },
+      ],
+      primaryRows: [
+        { label: "客户摘要", value: "已生成", note: "口吻偏稳健" },
+        { label: "风险揭示", value: "已插入", note: "覆盖波动和流动性" },
+        { label: "附件导出", value: "PDF + PPT", note: "可发邮件或企微" },
+      ],
+      primaryTitle: "客户材料预览",
+      railItems: ["顾问确认材料版本", "系统记录依据、修改和导出时间", "客户回复后回写跟进状态"],
+      railTitle: "交付流程",
+      secondaryRows: [
+        { label: "审计轨迹", value: "完整" },
+        { label: "版本", value: "v3" },
+        { label: "下一步", value: "预约沟通" },
+      ],
+      secondaryTitle: "交付检查",
+    },
+  ];
+
+  return renderDesktopProductScreen(seed, screen, index, views[index] ?? views[0]);
+}
+
+function renderReadFlowScreen(seed: ShowcaseProjectSeed, screen: ShowcaseProjectScreen, index: number) {
+  const views = [
+    {
+      badge: "今晚 21:30 推荐",
+      headline: "继续读《长日将尽》",
+      meta: "第 4 章 · 还剩 18 分钟",
+      primary: "回到上次阅读位置",
+      rows: ["通勤 12 分钟短篇推荐", "睡前护眼主题已开启", "本周目标 4/5 天"],
+      side: ["用户打开后 3 秒内回到阅读", "首页优先展示最近书籍而不是运营 banner", "推荐理由使用用户可理解的标签"],
+    },
+    {
+      badge: "专注阅读中",
+      headline: "第 4 章：黄昏后的信",
+      meta: "42% · 预计 18 分钟读完",
+      primary: "添加高亮笔记",
+      rows: ["字号 17 · 行高舒适", "当前段落已标注 2 条笔记", "下滑显示目录和主题设置"],
+      side: ["正文区域避免营销入口", "笔记按钮靠近选中文本", "进度和时间反馈保持低干扰"],
+    },
+    {
+      badge: "本周复盘",
+      headline: "连续阅读 6 天",
+      meta: "本周 3 小时 45 分钟 · 完成 76%",
+      primary: "调整下周目标",
+      rows: ["睡前阅读完成率 83%", "通勤阅读平均 14 分钟", "下周建议目标 5 天"],
+      side: ["把留存目标转成可见成就", "允许用户调低目标避免挫败", "复盘页连接书架和下一本推荐"],
+    },
+  ];
+  const view = views[index] ?? views[0];
+
+  return renderPrototypeDocument({
+    accent: screen.accent,
+    title: `${screen.name} · ${seed.name}`,
+    body: `<main class="phone-stage">
+  <section class="phone" data-od-id="reading-screen-${index}">
+    <div class="status"><span>9:41</span><span>ReadFlow</span></div>
+    <div class="phone-main">
+      <span class="eyebrow">${escapeShowcaseHtml(view.badge)}</span>
+      <h1 data-od-id="reading-title-${index}">${escapeShowcaseHtml(view.headline)}</h1>
+      <p class="muted">${escapeShowcaseHtml(view.meta)}</p>
+      <section class="book-card" data-od-id="reading-card-${index}">
+        <div class="hero-head"><strong>${escapeShowcaseHtml(screen.primaryAction)}</strong><button>${escapeShowcaseHtml(view.primary)}</button></div>
+        <div class="reading-lines"><i style="width: 94%"></i><i style="width: 82%"></i><i style="width: 68%"></i><i style="width: 88%"></i></div>
+        <div class="pills">${renderPills(screen.components, `reading-${index}`)}</div>
+      </section>
+      <div class="rows">${renderRows(
+        view.rows.map((item, itemIndex) => ({ label: item, value: itemIndex === 0 ? "现在" : "已同步" })),
+        `reading-row-${index}`,
+      )}</div>
+      <nav class="bottom-nav">${seed.screens.map((item, itemIndex) => `<a class="${itemIndex === index ? "active" : ""}" href="${String(itemIndex + 1).padStart(2, "0")}-${item.slug}.html">${escapeShowcaseHtml(item.name)}</a>`).join("")}</nav>
+    </div>
+  </section>
+  <aside class="rail" data-od-id="reading-prd-trace-${index}">
+    <span class="eyebrow">PRD trace</span>
+    <h2>${escapeShowcaseHtml(screen.goal)}</h2>
+    <div class="feed">${view.side.map((item, itemIndex) => `<div data-od-id="reading-trace-${index}-${itemIndex}">${escapeShowcaseHtml(item)}</div>`).join("")}</div>
+  </aside>
+</main>`,
+  });
+}
+
+function renderCoffeeOpsScreen(seed: ShowcaseProjectSeed, screen: ShowcaseProjectScreen, index: number) {
+  const views: DesktopScreenContent[] = [
+    {
+      feedTitle: "Store operating room",
+      headline: "老板一打开就知道今天缺什么货、哪个高峰需要加人",
+      metrics: [
+        { label: "今日预测营收", value: "¥8,420", note: "较上周同日 +12%" },
+        { label: "缺货风险", value: "3 项", note: "燕麦奶、冷萃豆、杯盖" },
+        { label: "待执行任务", value: "9", note: "已按影响排序" },
+      ],
+      primaryRows: [
+        { label: "燕麦拿铁", value: "高峰 14:00", note: "预计售罄前 2 小时" },
+        { label: "冷萃豆", value: "库存 1.5 天", note: "供应商 A 今日可送" },
+        { label: "兼职排班", value: "缺 1 人", note: "周六早高峰" },
+      ],
+      primaryTitle: "今日经营信号",
+      railItems: ["生成可编辑补货单", "把高峰预测同步到排班", "会员券只推给 21 天未到店用户"],
+      railTitle: "AI 执行建议",
+      secondaryRows: [
+        { label: "毛利预警", value: "奶制品 +8%" },
+        { label: "会员唤醒", value: "126 人" },
+        { label: "门店状态", value: "可控" },
+      ],
+      secondaryTitle: "老板看板",
+    },
+    {
+      feedTitle: "Replenishment planner",
+      headline: "根据销量预测、库存和供应商报价生成一张可确认的订货单",
+      metrics: [
+        { label: "预计节省", value: "¥312", note: "合并供应商起送价" },
+        { label: "安全库存", value: "92%", note: "核心原料覆盖" },
+        { label: "确认耗时", value: "3m", note: "比手工表格快" },
+      ],
+      primaryRows: [
+        { label: "燕麦奶 1L", value: "24 盒", note: "供应商 B 更便宜 4%" },
+        { label: "冷萃豆", value: "6 kg", note: "按周末预测上调" },
+        { label: "12oz 杯盖", value: "800 个", note: "避免下午断货" },
+      ],
+      primaryTitle: "订货建议",
+      railItems: ["老板可调数量并查看影响", "替代供应商自动显示交期", "确认后生成采购消息和库存更新"],
+      railTitle: "确认流程",
+      secondaryRows: [
+        { label: "供应商 A", value: "今日达" },
+        { label: "供应商 B", value: "低价" },
+        { label: "现金流影响", value: "¥1,860" },
+      ],
+      secondaryTitle: "供应商比较",
+    },
+    {
+      feedTitle: "Daily execution",
+      headline: "把订货、排班、会员运营排成今天每个人都能执行的任务板",
+      metrics: [
+        { label: "任务完成", value: "6/9", note: "剩余 3 项需老板确认" },
+        { label: "高峰覆盖", value: "100%", note: "已补齐周六早班" },
+        { label: "会员回流", value: "预计 18 单", note: "券成本可控" },
+      ],
+      primaryRows: [
+        { label: "10:30 确认补货", value: "店长" },
+        { label: "14:00 上架冷萃活动", value: "运营" },
+        { label: "18:00 复盘损耗", value: "老板" },
+      ],
+      primaryTitle: "今日任务板",
+      railItems: ["每个任务保留 AI 生成依据", "完成状态回写下一次预测", "异常库存自动生成明日提醒"],
+      railTitle: "运营闭环",
+      secondaryRows: [
+        { label: "已分配", value: "7 人" },
+        { label: "待确认", value: "2 项" },
+        { label: "预计人效", value: "+18%" },
+      ],
+      secondaryTitle: "执行质量",
+    },
+  ];
+
+  return renderDesktopProductScreen(seed, screen, index, views[index] ?? views[0]);
+}
+
+function renderClinicPilotScreen(seed: ShowcaseProjectSeed, screen: ShowcaseProjectScreen, index: number) {
+  const views: DesktopScreenContent[] = [
+    {
+      feedTitle: "Clinic intake board",
+      headline: "把预约队列、症状摘要和医生容量放在一个可调度工作台",
+      metrics: [
+        { label: "等待中", value: "14", note: "3 人超过目标等待" },
+        { label: "高风险提示", value: "2", note: "需护士立即确认" },
+        { label: "今日容量", value: "82%", note: "儿科下午已满" },
+      ],
+      primaryRows: [
+        { label: "张女士", value: "胸闷", note: "建议优先分诊" },
+        { label: "李同学", value: "发热", note: "儿科 16:20 可排" },
+        { label: "王先生", value: "复诊", note: "可转线上随访" },
+      ],
+      primaryTitle: "预约分诊队列",
+      railItems: ["AI 先摘要症状，不自动下诊断", "护士确认优先级后进入医生工作台", "异常等待时间触发前台提示"],
+      railTitle: "安全流程",
+      secondaryRows: [
+        { label: "全科医生", value: "6 个空位" },
+        { label: "儿科", value: "已满" },
+        { label: "线上复诊", value: "可转 4 人" },
+      ],
+      secondaryTitle: "容量分配",
+    },
+    {
+      feedTitle: "AI assisted triage",
+      headline: "把患者表单转成可解释的分诊建议，并要求人工确认",
+      metrics: [
+        { label: "建议等级", value: "中高", note: "因胸闷和持续时长" },
+        { label: "需补充问题", value: "3", note: "疼痛范围、过敏史、用药" },
+        { label: "确认率", value: "74%", note: "历史同类病例" },
+      ],
+      primaryRows: [
+        { label: "症状摘要", value: "已生成", note: "患者语言转换为医学描述" },
+        { label: "科室建议", value: "全科优先", note: "保留护士修改入口" },
+        { label: "风险提示", value: "需复核", note: "避免自动诊断" },
+      ],
+      primaryTitle: "分诊建议卡",
+      railItems: ["所有建议显示依据而不是黑盒结论", "护士确认后才能进入排班", "高风险词自动要求二次确认"],
+      railTitle: "人工确认",
+      secondaryRows: [
+        { label: "下一步", value: "补问 3 题" },
+        { label: "医生", value: "林医生" },
+        { label: "预计等待", value: "18 分钟" },
+      ],
+      secondaryTitle: "安排结果",
+    },
+    {
+      feedTitle: "Follow-up automation",
+      headline: "诊后自动生成复诊、用药和异常反馈跟进计划",
+      metrics: [
+        { label: "待随访", value: "31", note: "8 人今日到期" },
+        { label: "异常反馈", value: "4", note: "需护士电话确认" },
+        { label: "完成率", value: "86%", note: "较上周 +11%" },
+      ],
+      primaryRows: [
+        { label: "术后第 3 天", value: "短信 + 电话", note: "询问疼痛和发热" },
+        { label: "慢病复诊", value: "7 天后", note: "提醒带检查报告" },
+        { label: "用药提醒", value: "每日 20:00", note: "可患者自助确认" },
+      ],
+      primaryTitle: "随访计划",
+      railItems: ["异常反馈进入诊所任务池", "已完成随访写回患者时间线", "重复沟通由模板和变量自动生成"],
+      railTitle: "闭环记录",
+      secondaryRows: [
+        { label: "自动触达", value: "23 人" },
+        { label: "人工电话", value: "8 人" },
+        { label: "复诊预约", value: "12 单" },
+      ],
+      secondaryTitle: "随访渠道",
+    },
+  ];
+
+  return renderDesktopProductScreen(seed, screen, index, views[index] ?? views[0]);
+}
+
+function renderShowcaseScreen(seed: ShowcaseProjectSeed, _pack: ProductPack, screen: ShowcaseProjectScreen, index: number) {
+  if (seed.kind === "reading") return renderReadFlowScreen(seed, screen, index);
+  if (seed.kind === "coffee") return renderCoffeeOpsScreen(seed, screen, index);
+  if (seed.kind === "clinic") return renderClinicPilotScreen(seed, screen, index);
+
+  return renderFinSightScreen(seed, screen, index);
 }
 
 function buildShowcaseProject(seed: ShowcaseProjectSeed): StudioProjectRecord {
@@ -757,14 +1127,11 @@ export function ensureShowcaseProjects(storage = getBrowserStorage()): StudioPro
 
   if (storage.getItem(storageShowcaseSeededKey) === "1") return projects;
 
-  const existingIds = new Set(projects.map((project) => project.id));
-  const showcaseProjects = buildShowcaseProjects().filter((project) => !existingIds.has(project.id));
+  const showcaseProjects = buildShowcaseProjects();
+  const showcaseIds = new Set(showcaseProjects.map((project) => project.id));
+  const nextProjects = [...showcaseProjects, ...projects.filter((project) => !showcaseIds.has(project.id))];
 
   storage.setItem(storageShowcaseSeededKey, "1");
-
-  if (!showcaseProjects.length) return projects;
-
-  const nextProjects = [...showcaseProjects, ...projects];
 
   saveProjects(nextProjects, storage);
 
@@ -960,7 +1327,28 @@ export function deleteProject(id: string, storage = getBrowserStorage()): boolea
 }
 
 export function buildDemoProject(storage = getBrowserStorage()): StudioProjectRecord {
+  const showcaseDemo = buildShowcaseProjects().find((project) => project.id === "demo");
   const existing = storage ? getProject("demo", storage) : null;
+
+  if (showcaseDemo) {
+    if (storage) {
+      const projects = readProjects(storage);
+      const existingGeneratedHtml = existing?.productPack?.prototype.generatedArtifact?.files
+        .map((file) => file.body)
+        .join("\n");
+      const shouldRefreshDemo = !existingGeneratedHtml?.includes("Market command center");
+
+      if (!existing || shouldRefreshDemo) {
+        saveProjects([showcaseDemo, ...projects.filter((project) => project.id !== "demo")], storage);
+        storage.setItem(storageActiveProjectKey, showcaseDemo.id);
+        notifyChanged();
+
+        return showcaseDemo;
+      }
+    }
+
+    if (!existing) return showcaseDemo;
+  }
 
   if (existing) return existing;
 

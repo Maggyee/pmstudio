@@ -106,6 +106,12 @@ test("creates an empty project without generating a product pack", () => {
 
 test("builds showcase projects with generated prototype files", () => {
   const projects = buildShowcaseProjects();
+  const expectedSignals: Record<string, string[]> = {
+    demo: ["Market command center", "客户跟进优先级", "客户材料预览"],
+    "showcase-clinic-intake": ["Clinic intake board", "分诊建议卡", "随访计划"],
+    "showcase-coffee-ops": ["Store operating room", "燕麦奶", "今日任务板"],
+    "showcase-reading-app": ["继续读《长日将尽》", "专注阅读中", "PRD trace"],
+  };
 
   expect(projects.length).toBeGreaterThanOrEqual(4);
   expect(projects.map((project) => project.id)).toEqual(
@@ -122,6 +128,20 @@ test("builds showcase projects with generated prototype files", () => {
     expect(project.productPack?.project.title).toBe(project.name);
     expect(screenPaths.length).toBeGreaterThanOrEqual(3);
     expect(screenPaths.some((path) => /^screens\/\d{2}-screen-[a-z0-9]+\.html$/i.test(path))).toBe(false);
+
+    const generatedHtml = generatedFiles.map((file) => file.body).join("\n");
+
+    expect(generatedHtml).toContain("data-od-id");
+    expect(generatedHtml).not.toContain("PM Studio Showcase");
+    expect(generatedHtml).not.toContain("Prototype screen");
+
+    for (const signal of expectedSignals[project.id] ?? []) {
+      expect(generatedHtml).toContain(signal);
+    }
+
+    for (const file of generatedFiles.filter((item) => item.path.endsWith(".html"))) {
+      expect(file.body.length).toBeLessThan(10_000);
+    }
   }
 });
 
@@ -143,6 +163,35 @@ test("seeds showcase projects once without overwriting local projects", () => {
   expect(seededAgain).toHaveLength(seeded.length);
   expect(storage.getItem(studioProjectsStorageKeys.showcaseSeeded)).toBe("1");
   expect(getActiveProjectId(storage)).toBe(localProject.id);
+});
+
+test("refreshes built-in showcase projects when the seed version changes", () => {
+  const storage = new MemoryStorage();
+  const localProject = createProject(
+    {
+      name: "本地项目",
+      sourceIdea: "我自己的项目",
+    },
+    storage,
+  );
+  const demoProject = buildShowcaseProjects().find((project) => project.id === "demo");
+
+  expect(demoProject).toBeTruthy();
+
+  const staleDemo = JSON.parse(JSON.stringify(demoProject!)) as ReturnType<typeof buildShowcaseProjects>[number];
+
+  staleDemo.name = "旧 FinSight 示例";
+  staleDemo.productPack!.prototype.generatedArtifact!.files[1]!.body = "PM Studio Showcase";
+  storage.setItem(studioProjectsStorageKeys.projects, JSON.stringify([staleDemo, localProject]));
+
+  const refreshed = ensureShowcaseProjects(storage);
+  const demo = refreshed.find((project) => project.id === "demo");
+
+  expect(refreshed.find((project) => project.id === localProject.id)?.name).toBe("本地项目");
+  expect(demo?.name).toBe("FinSight 智能投研工作台");
+  expect(demo?.productPack?.prototype.generatedArtifact?.files.map((file) => file.body).join("\n")).toContain(
+    "Market command center",
+  );
 });
 
 test("renames, duplicates, archives, restores, and deletes projects", () => {
