@@ -552,12 +552,11 @@ function metricRows(pack: ProductPack) {
 
 function renderAiWorkspaceScreen(
   pack: ProductPack,
-  brief: PrototypeGenerationBrief,
+  _brief: PrototypeGenerationBrief,
   screenIndex: number,
   isEditing: boolean,
 ) {
   const screen = pack.prototype.screens[screenIndex] ?? pack.prototype.screens[0];
-  const link = screenPrdLink(pack, screen.name, screenIndex);
   const screenId = `screen-${screenIndex}`;
   const nameId = `screen-${screenIndex}-name`;
   const goalId = `screen-${screenIndex}-goal`;
@@ -566,6 +565,30 @@ function renderAiWorkspaceScreen(
   const nextScreenIndex = (screenIndex + 1) % screenCount;
   const nextScreen = pack.prototype.screens[nextScreenIndex] ?? pack.prototype.screens[0] ?? screen;
   const nextScreenFile = screenPath(nextScreen, nextScreenIndex);
+  const moduleCards = screen.components
+    .map((component, componentIndex) => {
+      const id = `screen-${screenIndex}-module-${componentIndex}`;
+
+      return `
+        <article class="module-card" data-od-id="${id}" ${getStyleString(pack, id)}>
+          <div>
+            <strong>${escapeHtml(component)}</strong>
+            <span>${escapeHtml(pack.prd.coreFeatures[componentIndex % pack.prd.coreFeatures.length] ?? screen.goal)}</span>
+          </div>
+          <button class="mini-action" type="button" data-action-button="true" data-label="${escapeHtml(component)}">查看</button>
+        </article>`;
+    })
+    .join("");
+  const metrics = pack.prd.successMetrics
+    .slice(0, 3)
+    .map(
+      (metric, metricIndex) => `
+        <div class="metric-card">
+          <span>${String(metricIndex + 1).padStart(2, "0")}</span>
+          <strong>${escapeHtml(metric)}</strong>
+        </div>`,
+    )
+    .join("");
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -574,133 +597,88 @@ function renderAiWorkspaceScreen(
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(screen.name)} · ${escapeHtml(pack.project.title)}</title>
   ${baseStyle(`
-    .workspace { min-height: 100vh; display: grid; grid-template-columns: 270px minmax(0, 1fr) 312px; background: var(--bg); }
-    .pane { min-width: 0; border-right: 1px solid var(--border); background: color-mix(in oklch, var(--surface) 82%, transparent); }
-    .left { padding: 18px 16px; display: flex; flex-direction: column; gap: 18px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 780; }
-    .mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--fg); color: var(--surface); font-size: 12px; }
-    .flow-list { display: grid; gap: 8px; }
-    .flow-item { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 8px; border: 1px solid transparent; border-radius: var(--radius); padding: 8px; color: var(--muted); font-size: 13px; }
-    .flow-item.active { border-color: var(--fg); background: var(--fg); color: var(--surface); }
-    .flow-item span { color: inherit; opacity: .62; font-size: 11px; font-variant-numeric: tabular-nums; }
-    .prompt-box { margin-top: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--warm); padding: 12px; }
-    .prompt-box p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
-    .main { min-width: 0; padding: 22px; }
-    .topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-    .topline p { margin: 0; color: var(--muted); font-size: 13px; }
-    .screen-frame { min-height: calc(100vh - 86px); border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
-    .screen-hero { padding: 22px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, var(--surface), var(--warm)); }
-    .screen-hero h1 { max-width: 780px; margin: 8px 0 0; font-size: 30px; line-height: 1.12; letter-spacing: 0; }
-    .screen-hero p { max-width: 760px; margin: 10px 0 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
-    .screen-body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px,.85fr); gap: 16px; padding: 18px; }
-    .module { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 15px; }
-    .module + .module { margin-top: 12px; }
-    .module-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-    .component-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-    .draft-card { border: 1px solid var(--border); border-radius: 10px; background: var(--warm); padding: 14px; }
-    .draft-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.62; }
-    .right { border-right: 0; border-left: 1px solid var(--border); padding: 18px 16px; }
-    .trace { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 13px; }
-    .trace p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
-    .metric-row { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 8px; border-top: 1px solid var(--border); padding: 10px 0; }
-    .metric-row span { color: var(--accent); font-size: 11px; font-weight: 800; }
-    .metric-row strong { font-size: 12px; line-height: 1.45; }
-    @media (max-width: 980px) { .workspace { grid-template-columns: 1fr; } .left, .right { display: none; } .screen-body { grid-template-columns: 1fr; } }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); background: var(--bg); }
+    .sidebar { border-right: 1px solid var(--border); background: var(--warm); padding: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; min-height: 40px; font-weight: 790; }
+    .mark { width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--radius); background: var(--fg); color: var(--surface); font-size: 12px; }
+    .nav { display: grid; gap: 6px; margin-top: 20px; }
+    .nav a { border-radius: var(--radius); color: var(--muted); font-size: 13px; padding: 10px; }
+    .nav a.active { background: var(--fg); color: var(--surface); }
+    .main { min-width: 0; padding: 18px 20px 24px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+    .search { min-width: 280px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--muted); padding: 9px 11px; font-size: 13px; }
+    .profile { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--fg); color: var(--surface); font-size: 11px; font-weight: 800; }
+    .hero { display: flex; align-items: start; justify-content: space-between; gap: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); padding: 18px; }
+    .hero h1 { max-width: 780px; margin: 8px 0 0; font-size: clamp(26px, 3.4vw, 42px); line-height: 1.08; letter-spacing: 0; }
+    .hero p { max-width: 740px; margin: 10px 0 0; color: var(--muted); font-size: 14px; line-height: 1.62; }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .metric-card, .panel, .module-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 13px; }
+    .metric-card span { color: var(--accent); font-size: 11px; font-weight: 820; }
+    .metric-card strong { display: block; margin-top: 5px; font-size: 13px; line-height: 1.45; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); gap: 14px; margin-top: 14px; }
+    .panel h2 { margin: 0; font-size: 16px; }
+    .module-list { display: grid; gap: 8px; margin-top: 12px; }
+    .module-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .module-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .mini-action { border: 1px solid var(--border); background: var(--surface); color: var(--fg); font-size: 12px; padding: 7px 9px; }
+    .activity { display: grid; gap: 9px; margin-top: 12px; }
+    .activity div { border-left: 3px solid var(--accent); border-radius: 8px; background: var(--warm); padding: 9px 10px; font-size: 13px; }
+    @media (max-width: 980px) { .app, .grid { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid var(--border); } .topbar, .hero { flex-direction: column; align-items: stretch; } .search { min-width: 0; } .metrics { grid-template-columns: 1fr; } }
   `)}
 </head>
 <body>
-  <div class="workspace">
-    <aside class="pane left">
-      <div class="brand"><span class="mark">PM</span><span>${escapeHtml(pack.project.title)}</span></div>
-      <div>
-        <p class="od-caption">Prototype flow</p>
-        <div class="flow-list">
-          ${pack.prototype.screens
-            .map(
-              (item, index) => `
-                <a class="flow-item ${index === screenIndex ? "active" : ""}" href="./${escapeHtml(
-                  screenPath(item, index).replace(/^screens\//, ""),
-                )}">
-                  <span>${String(index + 1).padStart(2, "0")}</span>
-                  <strong>${escapeHtml(item.name)}</strong>
-                </a>`,
-            )
-            .join("")}
-        </div>
-      </div>
-      <div class="prompt-box">
-        <strong>生成 Brief</strong>
-        <p>${escapeHtml(brief.designIntent)}</p>
-      </div>
+  <div class="app" data-od-id="${screenId}" ${getStyleString(pack, screenId)}>
+    <aside class="sidebar">
+      <div class="brand"><span class="mark">AI</span><span>${escapeHtml(pack.project.title)}</span></div>
+      <nav class="nav">
+        ${pack.prototype.screens
+          .map(
+            (item, index) => `
+              <a class="${index === screenIndex ? "active" : ""}" href="./${escapeHtml(
+                screenPath(item, index).replace(/^screens\//, ""),
+              )}">${escapeHtml(item.name)}</a>`,
+          )
+          .join("")}
+      </nav>
     </aside>
 
     <main class="main">
-      <div class="topline">
-        <p>${escapeHtml(kindLabel(brief.kind))} · ${escapeHtml(templateLabel(brief.templateId))}</p>
-        <button class="od-action secondary" data-action-button="true" data-prototype-file="${escapeHtml(
-          nextScreenFile,
-        )}" data-label="打开下一屏">打开下一屏：${escapeHtml(nextScreen.name)}</button>
+      <div class="topbar">
+        <div class="search">搜索项目、用户、任务或页面...</div>
+        <div class="profile"><span>自动同步中</span><span class="avatar">PM</span></div>
       </div>
-      <section class="screen-frame" data-od-id="${screenId}" ${getStyleString(pack, screenId)}>
-        <div class="screen-hero">
-          <span class="od-chip">${escapeHtml(link.requirement)}</span>
+      <section class="hero">
+        <div>
+          <span class="od-chip">${escapeHtml(pack.project.positioning)}</span>
           <h1 data-od-id="${nameId}" ${getStyleString(pack, nameId)}>${escapeHtml(screen.name)}</h1>
           <p data-od-id="${goalId}" ${getStyleString(pack, goalId)}>${escapeHtml(screen.goal)}</p>
-          <div style="margin-top: 16px;">
-            <button class="od-action" type="button" data-action-button="true" data-label="${escapeHtml(
-              screen.primaryAction,
-            )}" data-od-id="${actionId}" ${getStyleString(pack, actionId)}>${escapeHtml(screen.primaryAction)}</button>
-          </div>
         </div>
-        <div class="screen-body">
-          <div>
-            <section class="module">
-              <div class="module-head">
-                <h2 class="od-section-title">核心界面模块</h2>
-                <span class="od-caption">from PRD components</span>
-              </div>
-              <div class="component-grid">${componentChips(pack, screenIndex, screen.components)}</div>
-            </section>
-            <section class="module">
-              <div class="module-head">
-                <h2 class="od-section-title">当前产物草稿</h2>
-                <span class="od-caption">editable output</span>
-              </div>
-              <div class="draft-card">
-                <p>${escapeHtml(pack.project.valueProposition)}</p>
-              </div>
-            </section>
-          </div>
-          <aside>
-            <section class="module">
-              <div class="module-head">
-                <h2 class="od-section-title">成功标准</h2>
-                <span class="od-caption">KR</span>
-              </div>
-              ${metricRows(pack)}
-            </section>
-            <section class="module">
-              <div class="module-head">
-                <h2 class="od-section-title">PRD 映射</h2>
-                <span class="od-caption">trace</span>
-              </div>
-              <div class="trace">
-                <strong>${escapeHtml(link.screen)}</strong>
-                <p>${escapeHtml(link.rationale)}</p>
-              </div>
-            </section>
-          </aside>
+        <button class="od-action" type="button" data-action-button="true" data-label="${escapeHtml(
+          screen.primaryAction,
+        )}" data-od-id="${actionId}" ${getStyleString(pack, actionId)}>${escapeHtml(screen.primaryAction)}</button>
+      </section>
+      <section class="metrics">${metrics}</section>
+      <section class="grid">
+        <div class="panel">
+          <h2>核心功能区</h2>
+          <div class="module-list">${moduleCards}</div>
         </div>
+        <aside class="panel">
+          <h2>当前工作流</h2>
+          <div class="activity">
+            <div>${escapeHtml(screen.primaryAction)} 已准备就绪</div>
+            <div>${escapeHtml(nextScreen.name)} 可作为下一步</div>
+            <div>${escapeHtml(pack.project.valueProposition)}</div>
+          </div>
+          <div style="margin-top:12px;">
+            <button class="od-action secondary" data-action-button="true" data-prototype-file="${escapeHtml(
+          nextScreenFile,
+        )}" data-label="打开下一屏">打开下一屏：${escapeHtml(nextScreen.name)}</button>
+          </div>
+        </aside>
       </section>
     </main>
-
-    <aside class="pane right">
-      <section class="trace">
-        <strong>PRD Objective</strong>
-        <p>${escapeHtml(pack.prd.objective)}</p>
-      </section>
-      <div style="margin-top: 14px;">${metricRows(pack)}</div>
-    </aside>
   </div>
   ${buildBridgeScript(pack, isEditing)}
 </body>
@@ -714,7 +692,6 @@ function renderMobileScreen(
   isEditing: boolean,
 ) {
   const screen = pack.prototype.screens[screenIndex] ?? pack.prototype.screens[0];
-  const link = screenPrdLink(pack, screen.name, screenIndex);
   const screenId = `screen-${screenIndex}`;
   const nameId = `screen-${screenIndex}-name`;
   const goalId = `screen-${screenIndex}-goal`;
@@ -727,36 +704,59 @@ function renderMobileScreen(
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(screen.name)} · ${escapeHtml(pack.project.title)}</title>
   ${baseStyle(`
-    body { min-height: 100vh; display: grid; place-items: center; padding: 28px; }
-    .phone { width: min(390px, 100%); min-height: 780px; border: 10px solid var(--fg); border-radius: 36px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
-    .phone-bar { height: 48px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border); background: var(--warm); }
-    .notch { width: 88px; height: 8px; border-radius: 999px; background: color-mix(in oklch, var(--fg) 12%, transparent); }
-    .screen { padding: 18px; }
-    .screen h1 { margin: 12px 0 0; font-size: 26px; line-height: 1.12; letter-spacing: 0; }
+    body { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+    .phone { width: min(390px, 100%); min-height: 780px; display: flex; flex-direction: column; border: 10px solid var(--fg); border-radius: 36px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+    .status { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 12px 18px 0; font-size: 12px; font-weight: 780; }
+    .screen { flex: 1; padding: 16px 18px 0; }
+    .app-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .app-title strong { font-size: 14px; }
+    .screen h1 { margin: 16px 0 0; font-size: 30px; line-height: 1.08; letter-spacing: 0; }
     .screen p { margin: 9px 0 0; color: var(--muted); font-size: 14px; line-height: 1.62; }
-    .component-list { margin-top: 18px; display: grid; gap: 10px; }
-    .component-list .od-chip { justify-content: space-between; min-height: 44px; width: 100%; padding: 10px 12px; }
-    .bottom { position: sticky; bottom: 0; display: grid; gap: 10px; border-top: 1px solid var(--border); background: color-mix(in oklch, var(--surface) 94%, transparent); padding: 14px 18px 18px; backdrop-filter: blur(12px); }
+    .module-list { margin-top: 18px; display: grid; gap: 10px; }
+    .module-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; border: 1px solid var(--border); border-radius: 14px; background: var(--warm); padding: 11px 12px; }
+    .module-item span { color: var(--muted); font-size: 12px; }
+    .module-item b { display: block; font-size: 14px; }
+    .bottom { position: sticky; bottom: 0; display: grid; gap: 12px; border-top: 1px solid var(--border); background: color-mix(in oklch, var(--surface) 94%, transparent); padding: 14px 18px 18px; backdrop-filter: blur(12px); }
+    .tabs { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+    .tabs a.active { color: var(--fg); font-weight: 760; }
   `)}
 </head>
 <body>
   <main class="phone" data-od-id="${screenId}" ${getStyleString(pack, screenId)}>
-    <div class="phone-bar"><span class="notch"></span></div>
+    <div class="status"><span>9:41</span><span>${escapeHtml(pack.project.title)}</span></div>
     <section class="screen">
-      <span class="od-chip">${escapeHtml(kindLabel(brief.kind))}</span>
+      <div class="app-title">
+        <strong>${escapeHtml(pack.project.title)}</strong>
+        <span class="od-chip">${escapeHtml(kindLabel(brief.kind))}</span>
+      </div>
       <h1 data-od-id="${nameId}" ${getStyleString(pack, nameId)}>${escapeHtml(screen.name)}</h1>
       <p data-od-id="${goalId}" ${getStyleString(pack, goalId)}>${escapeHtml(screen.goal)}</p>
-      <div class="component-list">${componentChips(pack, screenIndex, screen.components)}</div>
-      <section style="margin-top:18px;border:1px solid var(--border);border-radius:10px;background:var(--warm);padding:13px;">
-        <strong style="font-size:13px;">PRD link</strong>
-        <p>${escapeHtml(link.requirement)}</p>
-      </section>
+      <div class="module-list">
+        ${screen.components
+          .map(
+            (component, componentIndex) => `
+              <div class="module-item" data-od-id="screen-${screenIndex}-mobile-module-${componentIndex}">
+                <div><b>${escapeHtml(component)}</b><span>${escapeHtml(pack.prd.coreFeatures[componentIndex % pack.prd.coreFeatures.length] ?? screen.goal)}</span></div>
+                <span>›</span>
+              </div>`,
+          )
+          .join("")}
+      </div>
     </section>
     <footer class="bottom">
       <button class="od-action" type="button" data-action-button="true" data-label="${escapeHtml(
         screen.primaryAction,
       )}" data-od-id="${actionId}" ${getStyleString(pack, actionId)}>${escapeHtml(screen.primaryAction)}</button>
-      <span class="od-caption">${escapeHtml(link.rationale)}</span>
+      <nav class="tabs">
+        ${pack.prototype.screens
+          .map(
+            (item, index) =>
+              `<a class="${index === screenIndex ? "active" : ""}" href="./${escapeHtml(
+                screenPath(item, index).replace(/^screens\//, ""),
+              )}">${escapeHtml(item.name)}</a>`,
+          )
+          .join("")}
+      </nav>
     </footer>
   </main>
   ${buildBridgeScript(pack, isEditing)}
@@ -833,7 +833,7 @@ function renderWizardScreen(
               </div>
             </div>
             <aside class="module">
-              <h2 class="od-section-title">PRD 映射</h2>
+              <h2 class="od-section-title">当前步骤依据</h2>
               <p class="od-caption">${escapeHtml(link.requirement)}</p>
               <p class="od-caption">${escapeHtml(link.rationale)}</p>
             </aside>
@@ -901,7 +901,7 @@ function renderLandingProductProofScreen(
         </div>
         <div class="shot-body">
           <div class="module">
-            <h2 class="od-section-title">PRD link</h2>
+            <h2 class="od-section-title">核心入口</h2>
             <p class="od-caption">${escapeHtml(link.requirement)}</p>
           </div>
           <div class="module">

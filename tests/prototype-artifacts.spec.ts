@@ -113,3 +113,21 @@ test("uses stable fallback screen file names for non-ascii screen names", () => 
     [],
   );
 });
+
+test("fallback prototype screens render as in-app UI instead of process chrome", () => {
+  const pack = buildProductPackFromIdea("给销售团队做一个客户跟进工作台");
+
+  pack.prototype.generatedArtifact = undefined;
+
+  const screenHtml = buildPrototypeArtifactBundle(pack)
+    .files.filter((file) => file.path.startsWith("screens/") && file.path.endsWith(".html"))
+    .map((file) => file.body)
+    .join("\n");
+
+  expect(screenHtml).toContain("data-od-id");
+  expect(screenHtml).toContain("搜索项目、用户、任务或页面");
+  expect(screenHtml).not.toContain("Prototype flow");
+  expect(screenHtml).not.toContain("生成 Brief");
+  expect(screenHtml).not.toContain("PRD link");
+  expect(screenHtml).not.toContain("PRD 映射");
+});

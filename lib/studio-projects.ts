@@ -49,7 +49,7 @@ type LegacyDemoProject = {
 
 const storageProjectKey = "pmstudio:projects:v5";
 const storageActiveProjectKey = "pmstudio:active-project-id:v5";
-const storageShowcaseSeededKey = "pmstudio:showcase-seeded:v6";
+const storageShowcaseSeededKey = "pmstudio:showcase-seeded:v7";
 const legacyProjectsKey = "pmstudio:projects:v4";
 const legacyActiveProjectKey = "pmstudio:active-project-id:v4";
 const legacyLastProductPackKey = "pmstudio:last-product-pack:v4";
@@ -587,9 +587,9 @@ function renderPrototypeDocument({
   <title>${escapeShowcaseHtml(title)}</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; background: #f4f5f3; color: #111315; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; min-height: 100vh; background: #f6f7f4; color: #111315; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     a { color: inherit; text-decoration: none; }
-    button { border: 0; border-radius: 10px; background: #111315; color: white; font: inherit; font-weight: 780; padding: 11px 14px; }
+    button { border: 0; border-radius: 8px; background: #111315; color: white; font: inherit; font-weight: 760; padding: 10px 13px; }
     .stage { min-height: 100vh; padding: 20px; }
     .shell { min-height: calc(100vh - 40px); display: grid; grid-template-columns: 236px minmax(0, 1fr); border: 1px solid #dedfd8; border-radius: 16px; background: white; overflow: hidden; box-shadow: 0 22px 70px rgba(17, 19, 21, .08); }
     .sidebar { border-right: 1px solid #ebece6; background: #faf9f5; padding: 16px; }
@@ -601,14 +601,29 @@ function renderPrototypeDocument({
     .workspace { min-width: 0; padding: 22px; }
     .topbar, .hero-head, .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
     .eyebrow { color: var(--accent); font-size: 12px; font-weight: 830; text-transform: uppercase; }
-    h1 { margin: 8px 0 0; max-width: 820px; font-size: clamp(31px, 4.6vw, 56px); line-height: 1.04; letter-spacing: 0; }
+    h1 { margin: 8px 0 0; max-width: 820px; font-size: clamp(28px, 4vw, 48px); line-height: 1.06; letter-spacing: 0; }
     h2, h3, p { margin: 0; }
     .muted, small { color: #6a6d72; line-height: 1.55; }
-    .hero { margin-top: 18px; border: 1px solid #e7e8e2; border-radius: 16px; background: linear-gradient(135deg, #ffffff, #f8f9f5); padding: 18px; }
-    .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+    .app-root { min-height: 100vh; display: grid; grid-template-columns: 232px minmax(0, 1fr); background: #f5f6f2; }
+    .app-sidebar { border-right: 1px solid #e3e4de; background: #fbfaf7; padding: 16px; }
+    .app-logo { display: flex; align-items: center; gap: 10px; min-height: 40px; font-weight: 830; }
+    .app-mark { width: 13px; height: 13px; border-radius: 50%; background: var(--accent); }
+    .app-nav { display: grid; gap: 6px; margin-top: 20px; }
+    .app-nav a { border-radius: 8px; color: #63666b; font-size: 13px; padding: 10px; }
+    .app-nav a.active { background: #111315; color: white; }
+    .app-main { min-width: 0; padding: 18px 20px 24px; }
+    .app-topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+    .search { min-width: 260px; border: 1px solid #e1e2dc; border-radius: 8px; background: white; color: #86888c; padding: 9px 11px; font-size: 13px; }
+    .user-menu { display: flex; align-items: center; gap: 8px; color: #63666b; font-size: 13px; }
+    .avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #111315; color: white; font-size: 11px; font-weight: 800; }
+    .app-board { display: grid; gap: 14px; }
+    .app-header { display: flex; justify-content: space-between; gap: 18px; align-items: start; border: 1px solid #e2e3dd; border-radius: 12px; background: white; padding: 16px; }
+    .app-header h1 { max-width: 760px; font-size: clamp(25px, 3.2vw, 40px); }
+    .hero { margin-top: 0; border: 1px solid #e7e8e2; border-radius: 12px; background: #fff; padding: 14px; }
+    .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .metric, .card, .rail { border: 1px solid #e8e9e3; border-radius: 12px; background: #fff; padding: 14px; }
     .metric strong { display: block; margin-top: 5px; font-size: 25px; line-height: 1.05; }
-    .grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 14px; margin-top: 14px; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 14px; margin-top: 0; }
     .rows { display: grid; gap: 8px; margin-top: 12px; }
     .row { border-top: 1px solid #eeefea; padding-top: 10px; }
     .row span { display: grid; gap: 2px; }
@@ -618,7 +633,7 @@ function renderPrototypeDocument({
     .rail { background: #fbfaf7; }
     .feed { display: grid; gap: 9px; margin-top: 12px; }
     .feed div { border-left: 3px solid var(--accent); background: white; border-radius: 8px; padding: 9px 10px; font-size: 13px; }
-    .phone-stage { min-height: 100vh; display: grid; place-items: center; grid-template-columns: minmax(320px, 390px) minmax(260px, 420px); gap: 28px; padding: 28px; }
+    .phone-stage { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f4f5f1; }
     .phone { width: min(390px, 100%); min-height: 760px; border: 10px solid #111315; border-radius: 34px; background: #fbfaf7; overflow: hidden; box-shadow: 0 22px 60px rgba(17, 19, 21, .16); }
     .phone-main { padding: 18px; }
     .status, .bottom-nav { display: flex; align-items: center; justify-content: space-between; }
@@ -627,7 +642,7 @@ function renderPrototypeDocument({
     .reading-lines { display: grid; gap: 11px; margin-top: 14px; }
     .reading-lines i { display: block; height: 10px; border-radius: 999px; background: #e5e2d6; }
     .bottom-nav { border-top: 1px solid #e2e0d8; margin-top: 18px; padding: 13px 18px; color: #606268; font-size: 12px; }
-    @media (max-width: 860px) { .stage { padding: 12px; } .shell, .grid, .phone-stage { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid #ebece6; } .kpis { grid-template-columns: 1fr; } .phone { min-height: 700px; } }
+    @media (max-width: 860px) { .stage { padding: 12px; } .shell, .grid, .app-root { grid-template-columns: 1fr; } .sidebar, .app-sidebar { border-right: 0; border-bottom: 1px solid #ebece6; } .kpis { grid-template-columns: 1fr; } .app-topbar, .app-header { flex-direction: column; align-items: stretch; } .search { min-width: 0; } .phone { min-height: 700px; } }
   </style>
 </head>
 <body style="--accent: ${escapeShowcaseHtml(accent)};">
@@ -681,25 +696,26 @@ function renderDesktopProductScreen(
   return renderPrototypeDocument({
     accent: screen.accent,
     title: `${screen.name} · ${seed.name}`,
-    body: `<main class="stage">
-  <section class="shell" data-od-id="${seed.kind}-screen-${index}">
-    <aside class="sidebar">
-      <div class="logo"><span class="mark"></span>${escapeShowcaseHtml(seed.name)}</div>
-      <nav class="nav">${renderScreenNav(seed, index)}</nav>
-    </aside>
-    <div class="workspace">
-      <header class="topbar">
+    body: `<main class="app-root" data-od-id="${seed.kind}-screen-${index}">
+  <aside class="app-sidebar">
+    <div class="app-logo"><span class="app-mark"></span>${escapeShowcaseHtml(seed.name)}</div>
+    <nav class="app-nav">${renderScreenNav(seed, index)}</nav>
+  </aside>
+  <section class="app-main">
+    <header class="app-topbar">
+      <div class="search">搜索客户、任务、材料或库存...</div>
+      <div class="user-menu"><span>今天 09:41</span><span class="avatar">PM</span></div>
+    </header>
+    <div class="app-board">
+      <section class="app-header">
         <div>
           <span class="eyebrow">${escapeShowcaseHtml(content.feedTitle)}</span>
           <h1 data-od-id="screen-title-${index}">${escapeShowcaseHtml(content.headline)}</h1>
+          <p class="muted">${escapeShowcaseHtml(screen.goal)}</p>
         </div>
         <button data-od-id="primary-action-${index}">${escapeShowcaseHtml(screen.primaryAction)}</button>
-      </header>
+      </section>
       <section class="hero" data-od-id="hero-${index}">
-        <div class="hero-head">
-          <p class="muted">${escapeShowcaseHtml(screen.goal)}</p>
-          <strong>${escapeShowcaseHtml(screen.metric)}</strong>
-        </div>
         <div class="kpis">${renderMetricTiles(content.metrics, `metric-${index}`)}</div>
       </section>
       <section class="grid">
@@ -852,11 +868,6 @@ function renderReadFlowScreen(seed: ShowcaseProjectSeed, screen: ShowcaseProject
       <nav class="bottom-nav">${seed.screens.map((item, itemIndex) => `<a class="${itemIndex === index ? "active" : ""}" href="${String(itemIndex + 1).padStart(2, "0")}-${item.slug}.html">${escapeShowcaseHtml(item.name)}</a>`).join("")}</nav>
     </div>
   </section>
-  <aside class="rail" data-od-id="reading-prd-trace-${index}">
-    <span class="eyebrow">PRD trace</span>
-    <h2>${escapeShowcaseHtml(screen.goal)}</h2>
-    <div class="feed">${view.side.map((item, itemIndex) => `<div data-od-id="reading-trace-${index}-${itemIndex}">${escapeShowcaseHtml(item)}</div>`).join("")}</div>
-  </aside>
 </main>`,
   });
 }

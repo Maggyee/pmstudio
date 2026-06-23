@@ -110,7 +110,7 @@ test("builds showcase projects with generated prototype files", () => {
     demo: ["Market command center", "客户跟进优先级", "客户材料预览"],
     "showcase-clinic-intake": ["Clinic intake board", "分诊建议卡", "随访计划"],
     "showcase-coffee-ops": ["Store operating room", "燕麦奶", "今日任务板"],
-    "showcase-reading-app": ["继续读《长日将尽》", "专注阅读中", "PRD trace"],
+    "showcase-reading-app": ["继续读《长日将尽》", "专注阅读中", "回到上次阅读位置"],
   };
 
   expect(projects.length).toBeGreaterThanOrEqual(4);
@@ -134,6 +134,7 @@ test("builds showcase projects with generated prototype files", () => {
     expect(generatedHtml).toContain("data-od-id");
     expect(generatedHtml).not.toContain("PM Studio Showcase");
     expect(generatedHtml).not.toContain("Prototype screen");
+    expect(generatedHtml).not.toContain("PRD trace");
 
     for (const signal of expectedSignals[project.id] ?? []) {
       expect(generatedHtml).toContain(signal);
